@@ -3,3 +3,4 @@ specfork-bundle/
 seeds/
 _site/
 specfork.lock
+vendor/
