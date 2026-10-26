@@ -30,7 +30,7 @@ https://specfork.dev: find a spec, read it, and build it with your agent. Static
 
 ## Out of scope
 
-- Usage numbers on pages: shown only once the hosted layer provides real data; no empty counters.
+- Usage numbers on pages: defined in MCP-9; shown only with real data, no empty counters.
 - Accounts, stars or comments on the site.
 - A feedback form without a GitHub account: comes with the hosted layer and its database.
 
