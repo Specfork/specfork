@@ -30,6 +30,6 @@ Let any agent find and resolve specs through MCP.
 
 - Stdio first: works today with no hosting; the hosted server reuses the same tools.
 - Counters are the only state: a daily aggregate cannot be traced to a person, so no consent banner is needed; the privacy statement is published on `/docs/`.
-- Host: Cloudflare Workers with a D1 table for counters; DNS is already at Cloudflare (IDX), and the host is outside GitHub Pages/Actions as IDX requires before anything commercial.
+- Host: `specfork serve`, the same Go code as the CLI (MCP-3), on any host outside GitHub Pages/Actions with a persistent disk (counters in a JSON file behind a `Store` interface). Cloudflare Workers with D1 was the first choice but cannot run the Go index and resolve code; DNS stays at Cloudflare (IDX). IDX requires leaving Pages/Actions before anything commercial.
 - Domain: `mcp.specfork.dev`, the existing domain; a later rename changes the hostname, and stdio users are unaffected.
 - Site stays static: counters enter at build via `/stats.json` (daily rebuild), not by browser calls, keeping WEB-16 (no third-party scripts).
