@@ -96,6 +96,23 @@ func TestSpecPage(t *testing.T) {
 	must(t, read("specfork/auth/index.html"), "auth", "Required by", `href="/specfork/scheduling/"`)
 }
 
+// IDX-12: the spec page and the home card say what builds it.
+func TestSiteBuildsWith(t *testing.T) {
+	_, read := build(t, nil)
+	must(t, read("specfork/scheduling/index.html"), "spec page", "not yet measured")
+	must(t, read("index.html"), "home", "not yet measured")
+	_, read = build(t, func(ix *index.Index) {
+		for i := range ix.Specs {
+			if ix.Specs[i].Name == "@specfork/scheduling" {
+				v := &ix.Specs[i].Versions[0]
+				index.ApplyBuilds(ix, []string{"haiku"}, []index.BuildRecord{{Spec: ix.Specs[i].Name, VersionSHA: v.SHA, Tier: "haiku", ChecksPassed: 3, ChecksTotal: 3, CostUSD: 0.5}})
+			}
+		}
+	})
+	must(t, read("specfork/scheduling/index.html"), "spec page", "builds with: <strong>haiku</strong>")
+	must(t, read("index.html"), "home", "builds with haiku")
+}
+
 // WEB-6, WEB-7
 func TestSpecContent(t *testing.T) {
 	_, read := build(t, nil)

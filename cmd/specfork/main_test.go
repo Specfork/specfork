@@ -51,6 +51,52 @@ func TestInfo(t *testing.T) {
 	}
 }
 
+// IDX-12: info shows the cheapest tier that gets the checks green.
+func TestInfoBuildsWith(t *testing.T) {
+	a, out, _ := newApp(t)
+	if code := a.run([]string{"info", "@specfork/scheduling"}); code != exitOK || !strings.Contains(out.String(), "builds with: not yet measured") {
+		t.Fatalf("unmeasured: exit %d\n%s", code, out)
+	}
+	ix, _ := a.loadIndex()
+	sp, _ := ix.Find("@specfork/scheduling")
+	index.ApplyBuilds(ix, []string{"haiku", "sonnet"}, []index.BuildRecord{
+		{Spec: sp.Name, VersionSHA: sp.Versions[0].SHA, Tier: "haiku", Model: "haiku-x", ChecksPassed: 9, ChecksTotal: 9, CostUSD: 0.12},
+	})
+	out.Reset()
+	if code := a.run([]string{"info", "@specfork/scheduling"}); code != exitOK || !strings.Contains(out.String(), "builds with: haiku ($0.12)") {
+		t.Fatalf("measured: exit %d\n%s", code, out)
+	}
+	out.Reset()
+	a.run([]string{"info", "--json", "@specfork/scheduling"})
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	bw, _ := got["builds_with"].(map[string]any)
+	if bw["tier"] != "haiku" || bw["cost_usd"] != 0.12 {
+		t.Fatalf("json %s", out)
+	}
+	out.Reset()
+	a.run([]string{"info", "--json", "@specfork/auth"})
+	json.Unmarshal(out.Bytes(), &got)
+	if v, ok := got["builds_with"]; !ok || v != nil {
+		t.Fatalf("unmeasured json should have builds_with: null, got %s", out)
+	}
+}
+
+// CLI-4: the cheap-buildable profile is opt-in.
+func TestLintCheapFlag(t *testing.T) {
+	a, out, _ := newApp(t)
+	dir := filepath.Join(testfx.SeedsDir(), "scheduling")
+	if code := a.run([]string{"lint", dir}); code != exitOK {
+		t.Fatalf("plain lint: exit %d\n%s", code, out)
+	}
+	out.Reset()
+	if code := a.run([]string{"lint", "--cheap", dir}); code != exitFail || !strings.Contains(out.String(), "FMT-1") {
+		t.Fatalf("--cheap: exit %d\n%s", code, out)
+	}
+}
+
 // CLI-3
 func TestResolve(t *testing.T) {
 	a, out, _ := newApp(t)

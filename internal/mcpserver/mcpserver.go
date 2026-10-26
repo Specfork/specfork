@@ -60,6 +60,7 @@ type GetOut struct {
 	Areas           []string          `json:"areas"`
 	Implementations []index.Impl      `json:"implementations"`
 	DerivedFrom     *spec.DerivedFrom `json:"derived_from,omitempty"`
+	BuildsWith      *index.BuildsWith `json:"builds_with"`
 }
 
 type ResolveIn struct {
@@ -143,6 +144,9 @@ func Info(ix *index.Index, name, version string) (GetOut, error) {
 		Requires: snap.Requires, RequiredBy: ix.RequiredBy(sp.Name), Areas: snap.Files, Implementations: sp.Implementations, DerivedFrom: sp.DerivedFrom}
 	for _, ver := range sp.Versions {
 		out.Versions = append(out.Versions, ver.Version)
+		if sha == ver.SHA {
+			out.BuildsWith = ver.BuildsWith
+		}
 	}
 	out.Versions = append(out.Versions, "head")
 	if out.Requires == nil {
@@ -164,6 +168,11 @@ func (g GetOut) Text() string {
 		fmt.Fprintf(&b, "derived:     %s (%s)\n", g.DerivedFrom.Repo, g.DerivedFrom.License)
 	}
 	fmt.Fprintf(&b, "versions:    %s\n", strings.Join(g.Versions, ", "))
+	if g.BuildsWith != nil {
+		fmt.Fprintf(&b, "builds with: %s ($%.2f)\n", g.BuildsWith.Tier, g.BuildsWith.CostUSD)
+	} else {
+		b.WriteString("builds with: not yet measured\n")
+	}
 	var req []string
 	for k, v := range g.Requires {
 		req = append(req, k+" "+v)
