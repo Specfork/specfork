@@ -57,7 +57,7 @@ const usage = `specfork: find, compose and build from app specs
   specfork info <name>[@version] [--json]   versions, requires, implementations
   specfork resolve <name>[@range] [--out dir] [--update]
                                            write the bundle and specfork.lock
-  specfork lint [dir]                       check a spec repo
+  specfork lint [dir] [--cheap]             check a spec repo (--cheap: also the cheap-buildable profile)
   specfork mcp                              MCP server on stdio
   specfork version
 
@@ -275,16 +275,26 @@ func short(s string) string {
 }
 
 func (a *app) lint(args []string) error {
-	dir := "."
-	if len(args) > 1 {
-		return usageError{"lint takes at most one directory"}
-	}
-	if len(args) == 1 {
-		dir = args[0]
-	}
-	issues, err := spec.LintDir(dir)
+	fs := flag.NewFlagSet("lint", flag.ContinueOnError)
+	cheap := fs.Bool("cheap", false, "")
+	pos, err := parse(fs, args)
 	if err != nil {
 		return err
+	}
+	dir := "."
+	if len(pos) > 1 {
+		return usageError{"lint takes at most one directory"}
+	}
+	if len(pos) == 1 {
+		dir = pos[0]
+	}
+	r, err := spec.LoadDir(dir)
+	if err != nil {
+		return err
+	}
+	issues := spec.Lint(r)
+	if *cheap {
+		issues = append(issues, spec.LintCheap(r)...)
 	}
 	errs := 0
 	for _, i := range issues {
@@ -315,6 +325,8 @@ func (a *app) crawl(args []string) error {
 	out := fs.String("out", "_site", "")
 	prevURL := fs.String("prev", index.DefaultURL, "")
 	docs := fs.String("docs", "docs", "")
+	buildsPath := fs.String("builds", "registry/builds.json", "")
+	tiersPath := fs.String("tiers", "registry/tiers.json", "")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -335,6 +347,17 @@ func (a *app) crawl(args []string) error {
 	}
 	gh := ghapi.New(os.Getenv("GITHUB_TOKEN"))
 	ix, st := crawl.Run(gh, reg, prev, time.Now())
+	tiers, err := index.ReadTiers(*tiersPath)
+	if err != nil {
+		return err
+	}
+	recs, err := index.ReadBuilds(*buildsPath)
+	if err != nil {
+		return err
+	}
+	if n := index.ApplyBuilds(ix, tiers, recs); n > 0 {
+		fmt.Fprintf(a.stderr, "warning: %d build record(s) match no indexed version or tier; dropped\n", n)
+	}
 	for _, e := range st.Errors {
 		fmt.Fprintln(a.stderr, "warning:", e)
 	}

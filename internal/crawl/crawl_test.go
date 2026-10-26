@@ -158,7 +158,7 @@ func TestIndexSchema(t *testing.T) {
 		}
 	}
 	v := spec["versions"].([]any)[0].(map[string]any)
-	for _, k := range []string{"version", "sha", "files"} {
+	for _, k := range []string{"version", "sha", "files", "builds_with", "builds"} {
 		if _, ok := v[k]; !ok {
 			t.Errorf("version missing %s", k)
 		}

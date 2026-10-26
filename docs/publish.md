@@ -36,6 +36,18 @@ One testable rule per row. `Verified by` is an acceptance check that doesn't dep
 specfork lint .
 ```
 
+### Optional: cheap-buildable
+
+Specs precise enough for small, cheap models to build are easier to choose and to trust. `specfork lint --cheap .` also checks, per area:
+
+- a `## Data model` section: every entity and field with type, required or not, limits (write `None.` if the area stores nothing);
+- an `## Examples` section with worked examples, each as input → exact output;
+- every `Verified by` is a `given … when … then …` scenario with concrete values, or a command with its expected result; no `manual`;
+- at most 15 rows and 60 lines per area;
+- no vague wording in a requirement (`usually`, `reasonable`, `etc`): state the default or behaviour.
+
+This is a mechanical check. Whether a cheap model really builds the spec is measured separately: once builds are recorded, the site and `specfork info` show `builds with: <tier>` (the cheapest model tier that got every acceptance check green, with its cost), or `not yet measured`. Results belong to one version, so a new version starts unmeasured.
+
 ## 3. Release it
 
 Add the topic `specfork` to the repo, then tag a version:

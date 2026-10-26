@@ -47,6 +47,12 @@
     {{if .BundleSum}}<p class="small"><strong>{{.BundleSum}}</strong> requirements in total</p>{{end}}{{end}}
   </section>
 
+  <section class="box">
+    <h2>Builds with</h2>
+    {{with .Spec.LatestBuildsWith}}<p class="small">builds with: <strong>{{.Tier}}</strong> (${{printf "%.2f" .CostUSD}} for the cheapest passing build of version {{$.Content.Version}})</p>
+    {{else}}<p class="small muted">builds with: not yet measured. No build of this version has been recorded.</p>{{end}}
+  </section>
+
   {{with .RequiredBy}}<section class="box"><h2>Required by</h2><ul class="plain">{{range .}}<li><a href="{{page .}}">{{.}}</a></li>{{end}}</ul></section>{{end}}
 
   <section class="box">

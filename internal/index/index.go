@@ -34,6 +34,8 @@ type Version struct {
 	Version string `json:"version"`
 	SHA     string `json:"sha"`
 	Snapshot
+	BuildsWith *BuildsWith `json:"builds_with"`
+	Builds     []Build     `json:"builds"`
 }
 
 // Impl is an implementation repo (FMT-8).
