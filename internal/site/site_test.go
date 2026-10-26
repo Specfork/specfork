@@ -7,8 +7,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/specfork/specfork/internal/index"
+	"github.com/specfork/specfork/internal/stats"
 	"github.com/specfork/specfork/internal/testfx"
 )
 
@@ -94,6 +96,42 @@ func TestSpecPage(t *testing.T) {
 		`href="/specfork/auth/"`, `href="/specfork/teams/"`, `href="/specfork/webhooks/"`, "requirements in total",
 		"someone/scheduling-go", "https://example.com", "github.com/calcom/cal.com", "0.1.0 · ")
 	must(t, read("specfork/auth/index.html"), "auth", "Required by", `href="/specfork/scheduling/"`)
+}
+
+// MCP-9
+func TestSiteCounters(t *testing.T) {
+	gen := func(rows []stats.Row) func(string) string {
+		ix, fetch := testfx.Seeds(t)
+		dir := t.TempDir()
+		now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+		if err := Generate(ix, dir, Options{Fetcher: fetch, DocsDir: "../../docs", Stats: rows, Now: func() time.Time { return now }}); err != nil {
+			t.Fatal(err)
+		}
+		return func(p string) string {
+			b, err := os.ReadFile(filepath.Join(dir, p))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return string(b)
+		}
+	}
+	read := gen([]stats.Row{
+		{Day: "2026-10-25", Tool: "resolve_spec", Spec: "@specfork/scheduling", Count: 7},
+		{Day: "2026-08-01", Tool: "resolve_spec", Spec: "@specfork/scheduling", Count: 5},
+		{Day: "2026-10-25", Tool: "get_spec", Spec: "@specfork/scheduling", Count: 99},
+		{Day: "2026-10-25", Tool: "resolve_spec", Spec: "unknown", Count: 50},
+	})
+	must(t, read("specfork/scheduling/index.html"), "spec page", "<strong>7</strong> resolves in 30 days", "12 in total")
+	must(t, read("index.html"), "home", "7 resolves in 30 days")
+	if strings.Contains(read("specfork/auth/index.html"), "resolves in") {
+		t.Error("spec without data shows resolves")
+	}
+	for _, rows := range [][]stats.Row{nil, {}} {
+		read = gen(rows)
+		if strings.Contains(read("specfork/scheduling/index.html"), "resolves in") || strings.Contains(read("index.html"), "resolves in") {
+			t.Error("counters shown without data")
+		}
+	}
 }
 
 // IDX-12: the spec page and the home card say what builds it.

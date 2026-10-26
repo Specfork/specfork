@@ -20,6 +20,7 @@ import (
 	"github.com/specfork/specfork/internal/resolve"
 	"github.com/specfork/specfork/internal/source"
 	"github.com/specfork/specfork/internal/spec"
+	"github.com/specfork/specfork/internal/stats"
 )
 
 //go:embed templates/*.html templates/style.css templates/app.js templates/og.png
@@ -42,6 +43,20 @@ type Options struct {
 	Fetcher source.Fetcher // spec files at a commit; nil skips content
 	DocsDir string         // Markdown docs (WEB-11); "" skips docs pages
 	Warn    func(string)
+	Stats   []stats.Row      // hosted MCP counters (MCP-9); none → no numbers shown
+	Now     func() time.Time // nil: time.Now
+}
+
+// usage is a spec's resolves; zero Total means no data.
+type usage struct{ Last30, Total int }
+
+func (b *builder) usage(name string) usage {
+	now := time.Now
+	if b.opt.Now != nil {
+		now = b.opt.Now
+	}
+	l, t := stats.Resolves(b.opt.Stats, name, now())
+	return usage{l, t}
 }
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
@@ -102,6 +117,7 @@ type card struct {
 	Requirements int
 	Search       string
 	Base         bool
+	Usage        usage
 }
 
 type head struct {
@@ -130,6 +146,7 @@ type specPage struct {
 	Bundle     []BundleItem
 	BundleSum  int
 	BundleErr  string
+	Usage      usage
 	RequiredBy []string
 	Repo       string
 }
@@ -183,7 +200,8 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 	total := 0
 	for _, s := range ix.Specs {
 		c := b.latest(s)
-		p := specPage{Spec: s, Content: c, RequiredBy: ix.RequiredBy(s.Name), Repo: Repo}
+		u := b.usage(s.Name)
+		p := specPage{Spec: s, Content: c, RequiredBy: ix.RequiredBy(s.Name), Repo: Repo, Usage: u}
 		p.Bundle, p.BundleSum, p.BundleErr = b.bundle(s)
 		p.Head = head{
 			Title:       specTitle(s),
@@ -196,7 +214,7 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 		}
 		total += c.Requirements
 		cards = append(cards, card{
-			Spec: s, Requirements: c.Requirements, Base: hasTag(s.Tags, "base"),
+			Spec: s, Requirements: c.Requirements, Base: hasTag(s.Tags, "base"), Usage: u,
 			Search: strings.ToLower(strings.Join([]string{s.Name, s.Summary, strings.Join(s.Tags, " "), c.SearchText}, " ")),
 		})
 	}

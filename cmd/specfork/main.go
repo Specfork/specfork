@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/specfork/specfork/internal/crawl"
 	"github.com/specfork/specfork/internal/ghapi"
+	"github.com/specfork/specfork/internal/hosted"
 	"github.com/specfork/specfork/internal/index"
 	"github.com/specfork/specfork/internal/mcpserver"
 	"github.com/specfork/specfork/internal/registry"
@@ -27,6 +29,7 @@ import (
 	"github.com/specfork/specfork/internal/site"
 	"github.com/specfork/specfork/internal/source"
 	"github.com/specfork/specfork/internal/spec"
+	"github.com/specfork/specfork/internal/stats"
 )
 
 // Exit codes (CLI-9).
@@ -59,6 +62,8 @@ const usage = `specfork: find, compose and build from app specs
                                            write the bundle and specfork.lock
   specfork lint [dir] [--cheap]             check a spec repo (--cheap: also the cheap-buildable profile)
   specfork mcp                              MCP server on stdio
+  specfork serve [--addr :8080] [--stats-db stats.json]
+                                           hosted MCP over HTTP at /mcp, counters at /stats.json
   specfork version
 
 Index: $SPECFORK_INDEX or ` + index.DefaultURL + `
@@ -100,6 +105,8 @@ func (a *app) run(args []string) int {
 		err = a.lint(args[1:])
 	case "mcp":
 		err = a.mcp()
+	case "serve":
+		err = a.serve(args[1:])
 	case "crawl":
 		err = a.crawl(args[1:])
 	case "claim-check":
@@ -318,6 +325,33 @@ func (a *app) mcp() error {
 	return srv.Run(ctx, &mcp.StdioTransport{})
 }
 
+// serve runs the hosted MCP server (MCP-6..8). It logs nothing about requests.
+func (a *app) serve(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	addr := fs.String("addr", ":8080", "")
+	db := fs.String("stats-db", "stats.json", "")
+	if _, err := parse(fs, args); err != nil {
+		return err
+	}
+	store, err := stats.OpenFile(*db)
+	if err != nil {
+		return err
+	}
+	h := hosted.New(hosted.Deps{LoadIndex: a.loadIndex, Fetcher: a.fetcher, Version: version(), Store: store})
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	srv := &http.Server{Addr: *addr, Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		srv.Shutdown(context.Background())
+	}()
+	fmt.Fprintf(a.stderr, "specfork: serving MCP on %s/mcp\n", *addr)
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
 // crawl is run by the index workflow (IDX-1, IDX-9).
 func (a *app) crawl(args []string) error {
 	fs := flag.NewFlagSet("crawl", flag.ContinueOnError)
@@ -327,6 +361,7 @@ func (a *app) crawl(args []string) error {
 	docs := fs.String("docs", "docs", "")
 	buildsPath := fs.String("builds", "registry/builds.json", "")
 	tiersPath := fs.String("tiers", "registry/tiers.json", "")
+	statsURL := fs.String("stats", "", "")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -363,7 +398,15 @@ func (a *app) crawl(args []string) error {
 	}
 	fmt.Fprintf(a.stderr, "specs %d, unclaimed %d, read %d, reused %d, skipped %d, API calls %d, rate limited %v\n",
 		len(ix.Specs), len(ix.Unclaimed), st.Read, st.Reused, st.Skipped, gh.Calls, st.RateLimited)
-	return site.Generate(ix, *out, site.Options{Fetcher: source.GitHub{}, DocsDir: *docs, Warn: func(s string) { fmt.Fprintln(a.stderr, "warning:", s) }})
+	// Counters are optional: a missing or down stats server never fails the build (MCP-9).
+	var rows []stats.Row
+	if *statsURL != "" {
+		if rows, err = stats.Fetch(*statsURL); err != nil {
+			fmt.Fprintf(a.stderr, "warning: no usage counters (%v)\n", err)
+			rows = nil
+		}
+	}
+	return site.Generate(ix, *out, site.Options{Fetcher: source.GitHub{}, DocsDir: *docs, Stats: rows, Warn: func(s string) { fmt.Fprintln(a.stderr, "warning:", s) }})
 }
 
 // claimCheck is run by the claim workflow on a registry PR (REG-2).

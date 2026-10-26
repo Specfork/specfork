@@ -158,6 +158,19 @@ func TestExitCodes(t *testing.T) {
 	}
 }
 
+// MCP-6: serve is listed and refuses a broken counter file instead of starting.
+func TestServeFlags(t *testing.T) {
+	a, _, errb := newApp(t)
+	bad := filepath.Join(t.TempDir(), "stats.json")
+	os.WriteFile(bad, []byte("not json"), 0o600)
+	if code := a.run([]string{"serve", "--stats-db", bad}); code != exitFail {
+		t.Errorf("broken stats db: %d", code)
+	}
+	if code := a.run([]string{"serve", "--nope"}); code != exitUsage || !strings.Contains(errb.String(), "specfork serve") {
+		t.Errorf("bad flag: %d %q", code, errb.String())
+	}
+}
+
 // CLI-5
 func TestIndexFetch(t *testing.T) {
 	t.Setenv("SPECFORK_INDEX", "")

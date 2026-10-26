@@ -21,6 +21,15 @@ type Deps struct {
 	LoadIndex func() (*index.Index, error)
 	Fetcher   source.Fetcher
 	Version   string
+	// OnCall, when set, is told of every tool call with the spec name asked for (empty for
+	// search_specs) and its error; the hosted server counts with it (MCP-7).
+	OnCall func(tool, spec string, err error)
+}
+
+func (d Deps) called(tool, spec string, err error) {
+	if d.OnCall != nil {
+		d.OnCall(tool, spec, err)
+	}
 }
 
 type SearchIn struct {
@@ -74,7 +83,8 @@ func New(d Deps) *mcp.Server {
 		Instructions: "Specfork indexes stack-free app specs. Before building an app from scratch, search_specs for one; resolve_spec returns the spec and everything it requires as one Markdown bundle to build from.",
 	})
 	mcp.AddTool(s, &mcp.Tool{Name: "search_specs", Description: "Find app specs by keywords. Returns names, summaries, latest versions, stars and implementation counts."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in SearchIn) (*mcp.CallToolResult, SearchOut, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, in SearchIn) (res *mcp.CallToolResult, out SearchOut, err error) {
+			defer func() { d.called("search_specs", "", err) }()
 			ix, err := d.LoadIndex()
 			if err != nil {
 				return nil, SearchOut{}, err
@@ -86,7 +96,7 @@ func New(d Deps) *mcp.Server {
 			if limit > 20 {
 				limit = 20
 			}
-			out := SearchOut{Specs: []Hit{}}
+			out = SearchOut{Specs: []Hit{}}
 			for _, sp := range ix.Search(in.Query) {
 				if len(out.Specs) == limit {
 					break
@@ -96,16 +106,18 @@ func New(d Deps) *mcp.Server {
 			return nil, out, nil
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "get_spec", Description: "Metadata of one spec: versions, requires, required-by, areas, implementations, licence."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in GetIn) (*mcp.CallToolResult, GetOut, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, in GetIn) (res *mcp.CallToolResult, out GetOut, err error) {
+			defer func() { d.called("get_spec", in.Name, err) }()
 			ix, err := d.LoadIndex()
 			if err != nil {
 				return nil, GetOut{}, err
 			}
-			out, err := Info(ix, in.Name, in.Version)
+			out, err = Info(ix, in.Name, in.Version)
 			return nil, out, err
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "resolve_spec", Description: "Resolve a spec and everything it requires into one Markdown bundle (BUNDLE.md first). Build the root spec from it."},
-		func(ctx context.Context, _ *mcp.CallToolRequest, in ResolveIn) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, in ResolveIn) (res *mcp.CallToolResult, _ any, err error) {
+			defer func() { d.called("resolve_spec", in.Name, err) }()
 			ix, err := d.LoadIndex()
 			if err != nil {
 				return nil, nil, err

@@ -53,6 +53,8 @@
     {{else}}<p class="small muted">builds with: not yet measured. No build of this version has been recorded.</p>{{end}}
   </section>
 
+  {{if .Usage.Total}}<section class="box"><h2>Usage</h2><p class="small"><strong>{{.Usage.Last30}}</strong> resolves in 30 days, {{.Usage.Total}} in total. Counted by the hosted MCP server; local CLI use is not counted.</p></section>{{end}}
+
   {{with .RequiredBy}}<section class="box"><h2>Required by</h2><ul class="plain">{{range .}}<li><a href="{{page .}}">{{.}}</a></li>{{end}}</ul></section>{{end}}
 
   <section class="box">

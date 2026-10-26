@@ -15,10 +15,10 @@ Let any agent find and resolve specs through MCP.
 | MCP-3 | Uses the same index and resolve code as the CLI. | TestMCPTools, TestInfo |
 | MCP-4 | Removed: usage counters move out of scope until the server is hosted (see MCP-7). | — |
 | MCP-5 | Removed: superseded by MCP-1 (stdio first). | — |
-| MCP-6 | Draft: a hosted server at `https://mcp.<domain>/mcp` speaks MCP over streamable HTTP, no login, with exactly the tools of MCP-2 and the same index and resolve code. | planned: TestHostedHandshake, TestHostedTools |
-| MCP-7 | Draft: each tool call adds 1 to a counter keyed `(UTC day, tool, spec name)`; `search_specs` has an empty spec name; failed calls and names not in the index count under `unknown`. Nothing else is stored or logged: no IP, user agent, headers, query text or session ID. | planned: TestCounterKey, TestCounterNoPersonalData |
-| MCP-8 | Draft: `GET /stats.json` returns the daily counters (`day`, `tool`, `spec`, `count`) for the last 90 days, public and cacheable for 5 minutes. | planned: TestStatsJSON |
-| MCP-9 | Draft: spec pages and the catalogue show resolves per spec (last 30 days and total) from `/stats.json` at site build; with no data the numbers are omitted, never shown as 0. | planned: TestSiteCounters |
+| MCP-6 | A hosted server at `https://mcp.<domain>/mcp` speaks MCP over streamable HTTP, no login, with exactly the tools of MCP-2 and the same index and resolve code. | TestHostedHandshake, TestHostedTools |
+| MCP-7 | Each tool call adds 1 to a counter keyed `(UTC day, tool, spec name)`; `search_specs` has an empty spec name; failed calls and names not in the index count under `unknown`. Nothing else is stored or logged: no IP, user agent, headers, query text or session ID. | TestCounterKey, TestCounterNoPersonalData |
+| MCP-8 | `GET /stats.json` returns the daily counters (`day`, `tool`, `spec`, `count`) for the last 90 days, public and cacheable for 5 minutes. | TestStatsJSON |
+| MCP-9 | Spec pages and the catalogue show resolves per spec (last 30 days and total) from `/stats.json` at site build; with no data the numbers are omitted, never shown as 0. | TestSiteCounters |
 
 ## Out of scope
 
