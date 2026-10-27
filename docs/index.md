@@ -4,17 +4,33 @@ Specfork gives your coding agent a complete, testable description of an app to b
 
 ## Install
 
+Nothing to install if you have Node: put `npx` in front of any command.
+
 ```bash
+npx specfork search booking
+```
+
+To get a `specfork` command on your machine, pick one:
+
+```bash
+npm i -g specfork
+brew install specfork/tap/specfork
+curl -fsSL https://specfork.dev/install.sh | sh
 go install github.com/specfork/specfork/cmd/specfork@latest
 ```
 
-This needs Go 1.25 or newer. The command is `specfork`.
+- **npm** runs a prebuilt binary for your system (Linux, macOS or Windows, Intel or ARM); it downloads nothing else when it runs.
+- **Homebrew** installs the same binary from the `specfork/tap` tap.
+- **The install script** checks the download against the release's SHA-256 checksums, puts `specfork` in `~/.local/bin` (set `SPECFORK_INSTALL` to choose another folder, `SPECFORK_VERSION` to pin a release) and never uses `sudo`. It tells you if that folder is not on your `PATH`.
+- **`go install`** needs Go 1.25 or newer.
+
+Every release lists its binaries and checksums on [GitHub](https://github.com/specfork/specfork/releases). The examples below drop the `npx`; add it if you did not install the command.
 
 ## Find a spec
 
 ```bash
-specfork search booking
-specfork info @specfork/scheduling
+npx specfork search booking
+npx specfork info @specfork/scheduling
 ```
 
 Or browse the [catalogue](/#specs).
@@ -22,8 +38,10 @@ Or browse the [catalogue](/#specs).
 ## Get the bundle
 
 ```bash
-specfork resolve @specfork/scheduling
+npx specfork resolve @specfork/scheduling
 ```
+
+`specfork add @specfork/scheduling` does the same.
 
 This writes `specfork-bundle/` and `specfork.lock` in the current folder:
 
@@ -36,10 +54,10 @@ Then tell your agent: *"Build the app described in `specfork-bundle/BUNDLE.md`. 
 ## Let the agent fetch specs itself (MCP)
 
 ```bash
-claude mcp add specfork -- specfork mcp
+claude mcp add specfork -- npx -y specfork mcp
 ```
 
-The agent gets three tools: `search_specs`, `get_spec` and `resolve_spec` (the whole bundle as one Markdown document). Any MCP-capable agent can run `specfork mcp` the same way.
+The agent gets three tools: `search_specs`, `get_spec` and `resolve_spec` (the whole bundle as one Markdown document). Any MCP-capable agent can run `npx -y specfork mcp` (or `specfork mcp`, if you installed the command) the same way.
 
 Agents that cannot install the CLI can use a hosted server instead. `specfork serve` runs one over streamable HTTP at `/mcp` with the same three tools and no login; point a client at it, e.g. `claude mcp add --transport http specfork <server-url>/mcp`.
 

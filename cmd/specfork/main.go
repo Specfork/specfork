@@ -60,11 +60,12 @@ const usage = `specfork: find, compose and build from app specs
   specfork info <name>[@version] [--json]   versions, requires, implementations
   specfork resolve <name>[@range] [--out dir] [--update]
                                            write the bundle and specfork.lock
+  specfork add <name>[@range] [...]         same as resolve
   specfork lint [dir] [--cheap]             check a spec repo (--cheap: also the cheap-buildable profile)
   specfork mcp                              MCP server on stdio
   specfork serve [--addr :8080] [--data stats.json]
                                            hosted MCP server (streamable HTTP) with daily usage counters
-  specfork version
+  specfork version                          also --version
 
 Index: $SPECFORK_INDEX or ` + index.DefaultURL + `
 `
@@ -99,7 +100,7 @@ func (a *app) run(args []string) int {
 		err = a.search(args[1:])
 	case "info":
 		err = a.info(args[1:])
-	case "resolve":
+	case "resolve", "add": // CLI-17
 		err = a.resolve(args[1:])
 	case "lint":
 		err = a.lint(args[1:])
@@ -137,11 +138,18 @@ func (a *app) run(args []string) int {
 	}
 }
 
+// buildVersion is set by release builds: -ldflags "-X main.buildVersion=1.2.3" (CLI-11, CLI-16).
+var buildVersion string
+
+// version names the release; "dev" for a source build (CLI-16).
 func version() string {
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" {
-		return "specfork " + bi.Main.Version
+	if buildVersion != "" {
+		return "specfork " + strings.TrimPrefix(buildVersion, "v")
 	}
-	return "specfork (devel)"
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return "specfork " + strings.TrimPrefix(bi.Main.Version, "v")
+	}
+	return "specfork dev"
 }
 
 // parse splits flags from positional args so flags may follow them.
@@ -361,6 +369,7 @@ func (a *app) crawl(args []string) error {
 	out := fs.String("out", "_site", "")
 	prevURL := fs.String("prev", index.DefaultURL, "")
 	docs := fs.String("docs", "docs", "")
+	install := fs.String("install", "install.sh", "")
 	buildsPath := fs.String("builds", "registry/builds.json", "")
 	tiersPath := fs.String("tiers", "registry/tiers.json", "")
 	statsURL := fs.String("stats-url", os.Getenv("SPECFORK_STATS_URL"), "")
@@ -407,7 +416,7 @@ func (a *app) crawl(args []string) error {
 			rows = nil
 		}
 	}
-	return site.Generate(ix, *out, site.Options{Fetcher: source.GitHub{}, DocsDir: *docs, Stats: rows, Warn: func(s string) { fmt.Fprintln(a.stderr, "warning:", s) }})
+	return site.Generate(ix, *out, site.Options{Fetcher: source.GitHub{}, DocsDir: *docs, Install: *install, Stats: rows, Warn: func(s string) { fmt.Fprintln(a.stderr, "warning:", s) }})
 }
 
 // claimCheck is run by the claim workflow on a registry PR (REG-2).

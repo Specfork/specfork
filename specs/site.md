@@ -1,6 +1,6 @@
 # Site
 
-**Status:** Draft · **Prefix:** WEB
+**Status:** Live · **Prefix:** WEB
 
 ## Purpose
 

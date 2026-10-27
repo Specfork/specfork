@@ -5,12 +5,13 @@
 **Browse:** https://specfork.dev
 
 ```bash
-go install github.com/specfork/specfork/cmd/specfork@latest
-specfork search booking
-specfork resolve @specfork/scheduling
+npx specfork search booking
+npx specfork resolve @specfork/scheduling
 ```
 
-`resolve` writes `specfork-bundle/` (the spec and everything it requires, IDs made global, overrides applied) and `specfork.lock`. Point your agent at `specfork-bundle/BUNDLE.md`, or let it fetch specs itself: `claude mcp add specfork -- specfork mcp`. `specfork serve` runs the same tools as a hosted MCP server (streamable HTTP) with anonymous daily usage counters.
+Install the command instead with `npm i -g specfork`, `brew install specfork/tap/specfork`, `curl -fsSL https://specfork.dev/install.sh | sh` or `go install github.com/specfork/specfork/cmd/specfork@latest`.
+
+`resolve` (or `add`) writes `specfork-bundle/` (the spec and everything it requires, IDs made global, overrides applied) and `specfork.lock`. Point your agent at `specfork-bundle/BUNDLE.md`, or let it fetch specs itself: `claude mcp add specfork -- npx -y specfork mcp`. `specfork serve` runs the same tools as a hosted MCP server (streamable HTTP) with anonymous daily usage counters.
 
 - [Use Specfork with your agent](https://specfork.dev/docs/)
 - [Publish a spec](https://specfork.dev/docs/publish/)

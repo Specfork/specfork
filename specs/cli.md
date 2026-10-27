@@ -1,6 +1,6 @@
 # CLI
 
-**Status:** Live: CLI-1..CLI-9 · **Prefix:** CLI
+**Status:** Live · **Prefix:** CLI
 
 ## Purpose
 

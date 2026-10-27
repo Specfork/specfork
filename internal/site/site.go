@@ -42,6 +42,7 @@ var openLicenses = map[string]bool{
 type Options struct {
 	Fetcher source.Fetcher // spec files at a commit; nil skips content
 	DocsDir string         // Markdown docs (WEB-11); "" skips docs pages
+	Install string         // install.sh, served as is (WEB-23); "" skips it
 	Warn    func(string)
 	Stats   []stats.Row // counters from the hosted server's /stats.json (MCP-9); nil shows no numbers
 	Now     time.Time   // zero means time.Now
@@ -262,6 +263,15 @@ func (b *builder) static() error {
 			return err
 		}
 	}
+	if b.opt.Install != "" {
+		data, err := os.ReadFile(b.opt.Install)
+		if err != nil {
+			return err
+		}
+		if err := b.write("install.sh", data); err != nil {
+			return err
+		}
+	}
 	return b.write(".nojekyll", nil)
 }
 
@@ -468,8 +478,9 @@ func (b *builder) seo(docs []docLink) error {
 	var lt strings.Builder
 	lt.WriteString("# Specfork\n\n> Recipes for software: stack-free app specs that coding agents can find, compose and build from.\n\n")
 	lt.WriteString("Each spec is a set of numbered, testable requirements with acceptance checks. Specs can require other specs (bases such as auth or teams); resolving one gives a single bundle to build from.\n\n")
-	lt.WriteString("## Use\n\n- CLI: `go install github.com/" + Repo + "/cmd/specfork@latest`, then `specfork search <words>` and `specfork resolve <name>` (writes specfork-bundle/BUNDLE.md).\n")
-	lt.WriteString("- MCP: `claude mcp add specfork -- specfork mcp` gives agents `search_specs`, `get_spec`, `resolve_spec`.\n")
+	lt.WriteString("## Use\n\n- CLI: `npx specfork search <words>` and `npx specfork resolve <name>` (writes specfork-bundle/BUNDLE.md).\n")
+	lt.WriteString("- Install the CLI: `npm i -g specfork`, `brew install specfork/tap/specfork`, `curl -fsSL " + BaseURL + "/install.sh | sh`, or `go install github.com/" + Repo + "/cmd/specfork@latest`.\n")
+	lt.WriteString("- MCP: `claude mcp add specfork -- npx -y specfork mcp` gives agents `search_specs`, `get_spec`, `resolve_spec`.\n")
 	lt.WriteString("- Catalogue as JSON: " + BaseURL + "/index.json\n")
 	lt.WriteString("- Docs: " + BaseURL + "/docs/\n\n## Specs\n\n")
 	for _, s := range b.ix.Specs {

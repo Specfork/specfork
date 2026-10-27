@@ -1,0 +1,11 @@
+{
+  "name": "specfork",
+  "version": "0.0.0",
+  "description": "Find, compose and build from app specs: the Specfork CLI",
+  "homepage": "https://specfork.dev",
+  "repository": { "type": "git", "url": "git+https://github.com/Specfork/specfork.git" },
+  "bin": { "specfork": "bin/specfork.js" },
+  "files": ["bin/specfork.js", "lib.js"],
+  "engines": { "node": ">=16" },
+  "optionalDependencies": {}
+}
