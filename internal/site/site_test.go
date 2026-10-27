@@ -7,8 +7,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/specfork/specfork/internal/index"
+	"github.com/specfork/specfork/internal/stats"
 	"github.com/specfork/specfork/internal/testfx"
 )
 
@@ -203,6 +205,44 @@ func TestFeedbackLinks(t *testing.T) {
 	for _, f := range []string{"config.yml", "feedback.yml", "spec-request.yml", "spec-problem.yml"} {
 		if _, err := os.Stat(filepath.Join("../../.github/ISSUE_TEMPLATE", f)); err != nil {
 			t.Errorf("issue form %s: %v", f, err)
+		}
+	}
+}
+
+// MCP-9
+func TestSiteCounters(t *testing.T) {
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	gen := func(rows []stats.Row) func(string) string {
+		ix, fetch := testfx.Seeds(t)
+		dir := t.TempDir()
+		if err := Generate(ix, dir, Options{Fetcher: fetch, DocsDir: "../../docs", Stats: rows, Now: now}); err != nil {
+			t.Fatal(err)
+		}
+		return func(p string) string {
+			b, err := os.ReadFile(filepath.Join(dir, p))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return string(b)
+		}
+	}
+	read := gen([]stats.Row{
+		{Day: "2026-10-20", Tool: "resolve_spec", Spec: "@specfork/scheduling", Count: 4},
+		{Day: "2026-08-10", Tool: "resolve_spec", Spec: "@specfork/scheduling", Count: 6},
+	})
+	must(t, read("specfork/scheduling/index.html"), "spec page", "<strong>4</strong> resolves in 30 days, <strong>10</strong> in 90")
+	must(t, read("index.html"), "home", "4 resolves in 30 days, 10 in 90")
+	if strings.Contains(read("specfork/auth/index.html"), "resolves in") {
+		t.Error("spec without resolves shows counters")
+	}
+	home := read("index.html")
+	if strings.Count(home, "resolves in 30 days") != 1 {
+		t.Error("home: only the resolved spec should show counters")
+	}
+	none := gen(nil)
+	for _, p := range []string{"specfork/scheduling/index.html", "index.html"} {
+		if s := none(p); strings.Contains(s, "resolves in") {
+			t.Errorf("%s shows counters without data", p)
 		}
 	}
 }

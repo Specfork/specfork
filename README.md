@@ -10,7 +10,7 @@ specfork search booking
 specfork resolve @specfork/scheduling
 ```
 
-`resolve` writes `specfork-bundle/` (the spec and everything it requires, IDs made global, overrides applied) and `specfork.lock`. Point your agent at `specfork-bundle/BUNDLE.md`, or let it fetch specs itself: `claude mcp add specfork -- specfork mcp`.
+`resolve` writes `specfork-bundle/` (the spec and everything it requires, IDs made global, overrides applied) and `specfork.lock`. Point your agent at `specfork-bundle/BUNDLE.md`, or let it fetch specs itself: `claude mcp add specfork -- specfork mcp`. `specfork serve` runs the same tools as a hosted MCP server (streamable HTTP) with anonymous daily usage counters.
 
 - [Use Specfork with your agent](https://specfork.dev/docs/)
 - [Publish a spec](https://specfork.dev/docs/publish/)

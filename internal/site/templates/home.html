@@ -32,6 +32,7 @@
       <div class="meta">
         {{range .Tags}}<span class="tag">{{.}}</span>{{end}}
         {{if .Requirements}}<span>{{.Requirements}} requirements</span>{{end}}
+        {{with .Resolves}}<span>{{.Last30}} resolves in 30 days, {{.Total}} in 90</span>{{end}}
         <span>{{.License}}</span>
         {{with .Implementations}}<span>{{len .}} implementation{{if ne (len .) 1}}s{{end}}</span>{{end}}
         {{with .LatestBuildsWith}}<span>builds with {{.Tier}}</span>{{else}}<span class="muted">not yet measured</span>{{end}}

@@ -20,6 +20,7 @@ import (
 	"github.com/specfork/specfork/internal/resolve"
 	"github.com/specfork/specfork/internal/source"
 	"github.com/specfork/specfork/internal/spec"
+	"github.com/specfork/specfork/internal/stats"
 )
 
 //go:embed templates/*.html templates/style.css templates/app.js templates/og.png
@@ -42,6 +43,8 @@ type Options struct {
 	Fetcher source.Fetcher // spec files at a commit; nil skips content
 	DocsDir string         // Markdown docs (WEB-11); "" skips docs pages
 	Warn    func(string)
+	Stats   []stats.Row // counters from the hosted server's /stats.json (MCP-9); nil shows no numbers
+	Now     time.Time   // zero means time.Now
 }
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
@@ -102,6 +105,7 @@ type card struct {
 	Requirements int
 	Search       string
 	Base         bool
+	Resolves     *stats.Resolves
 }
 
 type head struct {
@@ -132,6 +136,7 @@ type specPage struct {
 	BundleErr  string
 	RequiredBy []string
 	Repo       string
+	Resolves   *stats.Resolves
 }
 
 type docPage struct {
@@ -165,6 +170,17 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 	for _, s := range ix.Specs {
 		b.known[s.Name] = true
 	}
+	now := opt.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	resolves := stats.ResolvesBySpec(opt.Stats, now)
+	resolvesOf := func(name string) *stats.Resolves {
+		if r, ok := resolves[name]; ok {
+			return &r
+		}
+		return nil
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -183,7 +199,7 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 	total := 0
 	for _, s := range ix.Specs {
 		c := b.latest(s)
-		p := specPage{Spec: s, Content: c, RequiredBy: ix.RequiredBy(s.Name), Repo: Repo}
+		p := specPage{Spec: s, Content: c, RequiredBy: ix.RequiredBy(s.Name), Repo: Repo, Resolves: resolvesOf(s.Name)}
 		p.Bundle, p.BundleSum, p.BundleErr = b.bundle(s)
 		p.Head = head{
 			Title:       specTitle(s),
@@ -196,7 +212,7 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 		}
 		total += c.Requirements
 		cards = append(cards, card{
-			Spec: s, Requirements: c.Requirements, Base: hasTag(s.Tags, "base"),
+			Spec: s, Requirements: c.Requirements, Base: hasTag(s.Tags, "base"), Resolves: resolvesOf(s.Name),
 			Search: strings.ToLower(strings.Join([]string{s.Name, s.Summary, strings.Join(s.Tags, " "), c.SearchText}, " ")),
 		})
 	}

@@ -41,6 +41,12 @@ claude mcp add specfork -- specfork mcp
 
 The agent gets three tools: `search_specs`, `get_spec` and `resolve_spec` (the whole bundle as one Markdown document). Any MCP-capable agent can run `specfork mcp` the same way.
 
+Agents that cannot install the CLI can use a hosted server instead. `specfork serve` runs one over streamable HTTP at `/mcp` with the same three tools and no login; point a client at it, e.g. `claude mcp add --transport http specfork <server-url>/mcp`.
+
+### What the hosted server counts
+
+The hosted server adds 1 to a daily counter for each tool call, keyed by day (UTC), tool and spec name. Failed calls and unknown names count as `unknown`. It stores and logs nothing else: no IP address, user agent, headers, search text or session ID. The counters are public at `/stats.json` (last 90 days) and show on spec pages as resolves per spec. Local `specfork mcp` is never counted.
+
 ## Change what you need
 
 Specs are recipes, not rules:

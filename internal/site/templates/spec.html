@@ -9,6 +9,7 @@
       {{range .Spec.Tags}}<a class="tag" href="/?tag={{.}}#specs">{{.}}</a>{{end}}
       <span>Version <strong>{{.Content.Version}}</strong></span>
       {{if .Content.Requirements}}<span><strong>{{.Content.Requirements}}</strong> requirements</span>{{end}}
+      {{with .Resolves}}<span><strong>{{.Last30}}</strong> resolves in 30 days, <strong>{{.Total}}</strong> in 90</span>{{end}}
       <span>Licence <strong>{{.Spec.License}}</strong></span>
       <a href="https://github.com/{{.Spec.Repo}}">{{.Spec.Repo}}</a>
     </div>
