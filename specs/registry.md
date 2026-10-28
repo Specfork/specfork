@@ -1,6 +1,6 @@
 # Registry
 
-**Status:** Live: REG-1..REG-7 · **Prefix:** REG
+**Status:** Live · **Prefix:** REG
 
 ## Purpose
 

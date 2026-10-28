@@ -40,9 +40,19 @@ func Handler(d mcpserver.Deps, st stats.Store, now func() time.Time) http.Handle
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil))
 	mux.HandleFunc("GET /stats.json", func(w http.ResponseWriter, _ *http.Request) {
+		rows := st.Rows(now())
+		if c, ok := st.(interface {
+			RowsErr(time.Time) ([]stats.Row, error)
+		}); ok {
+			var err error
+			if rows, err = c.RowsErr(now()); err != nil { // MCP-12
+				http.Error(w, `{"error":"unavailable"}`, http.StatusServiceUnavailable)
+				return
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "public, max-age=300")
-		json.NewEncoder(w).Encode(st.Rows(now()))
+		json.NewEncoder(w).Encode(rows)
 	})
 	return mux
 }

@@ -1,6 +1,6 @@
 # MCP
 
-**Status:** Live: MCP-1..MCP-9 · **Prefix:** MCP
+**Status:** Live · **Prefix:** MCP
 
 ## Purpose
 

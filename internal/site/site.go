@@ -18,6 +18,7 @@ import (
 
 	"github.com/specfork/specfork/internal/index"
 	"github.com/specfork/specfork/internal/resolve"
+	"github.com/specfork/specfork/internal/scores"
 	"github.com/specfork/specfork/internal/source"
 	"github.com/specfork/specfork/internal/spec"
 	"github.com/specfork/specfork/internal/stats"
@@ -32,6 +33,9 @@ const Repo = "specfork/specfork"
 // BaseURL is the canonical site origin (WEB-12).
 const BaseURL = "https://specfork.dev"
 
+// APIURL is the only host the site's script talks to (WEB-21).
+const APIURL = "https://api.specfork.dev"
+
 // openLicenses may be shown on the site (WEB-7).
 var openLicenses = map[string]bool{
 	"CC-BY-4.0": true, "CC-BY-SA-4.0": true, "CC0-1.0": true, "MIT": true, "Apache-2.0": true,
@@ -44,8 +48,9 @@ type Options struct {
 	DocsDir string         // Markdown docs (WEB-11); "" skips docs pages
 	Install string         // install.sh, served as is (WEB-23); "" skips it
 	Warn    func(string)
-	Stats   []stats.Row // counters from the hosted server's /stats.json (MCP-9); nil shows no numbers
-	Now     time.Time   // zero means time.Now
+	Scores  []scores.Score // from the API's /scores.json (WEB-18); nil shows no scores
+	Stats   []stats.Row    // counters from the hosted server's /stats.json (MCP-9); nil shows no numbers
+	Now     time.Time      // zero means time.Now
 }
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
@@ -107,6 +112,7 @@ type card struct {
 	Search       string
 	Base         bool
 	Resolves     *stats.Resolves
+	Score        *scores.Score
 }
 
 type head struct {
@@ -138,6 +144,8 @@ type specPage struct {
 	RequiredBy []string
 	Repo       string
 	Resolves   *stats.Resolves
+	Score      *scores.Score
+	API        string
 }
 
 type docPage struct {
@@ -147,11 +155,13 @@ type docPage struct {
 	Repo  string
 	Docs  []docLink
 	Path  string
+	API   string
+	Claim bool // the page has the one-click claim box (WEB-20)
 }
 
 type docLink struct{ Path, Title string }
 
-var docOrder = []struct{ file, path string }{{"index.md", "/docs/"}, {"publish.md", "/docs/publish/"}, {"claim.md", "/docs/claim/"}, {"feedback.md", "/docs/feedback/"}}
+var docOrder = []struct{ file, path string }{{"index.md", "/docs/"}, {"publish.md", "/docs/publish/"}, {"claim.md", "/docs/claim/"}, {"feedback.md", "/docs/feedback/"}, {"privacy.md", "/docs/privacy/"}}
 
 // builder carries state for one build.
 type builder struct {
@@ -182,6 +192,13 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 		}
 		return nil
 	}
+	scoreBy := scores.BySpec(opt.Scores)
+	scoreOf := func(name string) *scores.Score {
+		if sc, ok := scoreBy[name]; ok {
+			return &sc
+		}
+		return nil
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -200,7 +217,7 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 	total := 0
 	for _, s := range ix.Specs {
 		c := b.latest(s)
-		p := specPage{Spec: s, Content: c, RequiredBy: ix.RequiredBy(s.Name), Repo: Repo, Resolves: resolvesOf(s.Name)}
+		p := specPage{Spec: s, Content: c, RequiredBy: ix.RequiredBy(s.Name), Repo: Repo, Resolves: resolvesOf(s.Name), Score: scoreOf(s.Name), API: APIURL}
 		p.Bundle, p.BundleSum, p.BundleErr = b.bundle(s)
 		p.Head = head{
 			Title:       specTitle(s),
@@ -213,7 +230,7 @@ func Generate(ix *index.Index, dir string, opt Options) error {
 		}
 		total += c.Requirements
 		cards = append(cards, card{
-			Spec: s, Requirements: c.Requirements, Base: hasTag(s.Tags, "base"), Resolves: resolvesOf(s.Name),
+			Spec: s, Requirements: c.Requirements, Base: hasTag(s.Tags, "base"), Resolves: resolvesOf(s.Name), Score: scoreOf(s.Name),
 			Search: strings.ToLower(strings.Join([]string{s.Name, s.Summary, strings.Join(s.Tags, " "), c.SearchText}, " ")),
 		})
 	}
@@ -426,7 +443,7 @@ func (b *builder) docs() ([]docLink, error) {
 	for _, d := range all {
 		p := docPage{
 			Head:  head{Title: d.link.Title + " · Specfork", Description: clip(d.desc, 160), Canonical: BaseURL + d.link.Path},
-			Title: d.link.Title, HTML: template.HTML(d.html), Repo: Repo, Docs: links, Path: d.link.Path,
+			Title: d.link.Title, HTML: template.HTML(d.html), Repo: Repo, Docs: links, Path: d.link.Path, API: APIURL, Claim: d.link.Path == "/docs/claim/",
 		}
 		if err := b.render(strings.TrimPrefix(d.link.Path, "/")+"index.html", "doc.html", p); err != nil {
 			return nil, err

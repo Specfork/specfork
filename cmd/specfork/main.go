@@ -9,11 +9,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 	"time"
 
@@ -21,11 +23,12 @@ import (
 
 	"github.com/specfork/specfork/internal/crawl"
 	"github.com/specfork/specfork/internal/ghapi"
-	"github.com/specfork/specfork/internal/hosted"
 	"github.com/specfork/specfork/internal/index"
 	"github.com/specfork/specfork/internal/mcpserver"
 	"github.com/specfork/specfork/internal/registry"
 	"github.com/specfork/specfork/internal/resolve"
+	"github.com/specfork/specfork/internal/scores"
+	"github.com/specfork/specfork/internal/server"
 	"github.com/specfork/specfork/internal/site"
 	"github.com/specfork/specfork/internal/source"
 	"github.com/specfork/specfork/internal/spec"
@@ -63,8 +66,7 @@ const usage = `specfork: find, compose and build from app specs
   specfork add <name>[@range] [...]         same as resolve
   specfork lint [dir] [--cheap]             check a spec repo (--cheap: also the cheap-buildable profile)
   specfork mcp                              MCP server on stdio
-  specfork serve [--addr :8080] [--data stats.json]
-                                           hosted MCP server (streamable HTTP) with daily usage counters
+  specfork serve                            hosted MCP server and API (config from env, see specs/api.md)
   specfork version                          also --version
 
 Index: $SPECFORK_INDEX or ` + index.DefaultURL + `
@@ -333,29 +335,33 @@ func (a *app) mcp() error {
 	return srv.Run(ctx, &mcp.StdioTransport{})
 }
 
-// serve runs the hosted MCP server and its counters (MCP-6..8).
+// serve runs the hosted MCP server and the API behind specfork.dev (MCP-6..12, API).
 func (a *app) serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	addr := fs.String("addr", ":8080", "")
-	data := fs.String("data", "stats.json", "")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
-	st, err := stats.OpenFile(*data)
+	cfg, err := server.LoadConfig(os.Getenv) // API-2
 	if err != nil {
 		return err
 	}
-	h := hosted.Handler(mcpserver.Deps{LoadIndex: a.loadIndex, Fetcher: a.fetcher, Version: version()}, st, time.Now)
-	srv := &http.Server{Addr: *addr, Handler: h, ReadHeaderTimeout: 10 * time.Second}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	pg, err := server.OpenPG(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pg.Close()
+	logger := slog.New(slog.NewJSONHandler(a.stdout, nil)) // API-5
+	h := server.New(cfg, server.Deps{Store: pg, Counters: pg, LoadIndex: a.loadIndex, Fetcher: a.fetcher, Version: version(), HTTP: &http.Client{Timeout: 15 * time.Second}, Log: logger}).Handler()
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: h, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		sc, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		srv.Shutdown(sc)
 	}()
-	fmt.Fprintf(a.stderr, "serving MCP on %s/mcp and counters on %s/stats.json\n", *addr, *addr)
+	logger.Info("listening", "port", cfg.Port)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -373,6 +379,7 @@ func (a *app) crawl(args []string) error {
 	buildsPath := fs.String("builds", "registry/builds.json", "")
 	tiersPath := fs.String("tiers", "registry/tiers.json", "")
 	statsURL := fs.String("stats-url", os.Getenv("SPECFORK_STATS_URL"), "")
+	scoresURL := fs.String("scores-url", os.Getenv("SPECFORK_SCORES_URL"), "")
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -416,7 +423,29 @@ func (a *app) crawl(args []string) error {
 			rows = nil
 		}
 	}
-	return site.Generate(ix, *out, site.Options{Fetcher: source.GitHub{}, DocsDir: *docs, Install: *install, Stats: rows, Warn: func(s string) { fmt.Fprintln(a.stderr, "warning:", s) }})
+	var sc []scores.Score
+	if *scoresURL != "" { // IDX-15: scores are optional
+		if sc, err = scores.Fetch(*scoresURL); err != nil {
+			fmt.Fprintf(a.stderr, "warning: no scores (%v); building without\n", err)
+			sc = nil
+		}
+	}
+	return site.Generate(ix, *out, site.Options{Fetcher: source.GitHub{}, DocsDir: *docs, Install: *install, Stats: rows, Scores: sc, Warn: func(s string) { fmt.Fprintln(a.stderr, "warning:", s) }})
+}
+
+func envOr(name, def string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return def
+}
+
+// userLookup resolves the claimant ID of a PR from the Specfork App (REG-9).
+type userLookup struct{ gh *ghapi.Client }
+
+func (u userLookup) LoginByID(id int64) (string, error) {
+	user, err := u.gh.UserByID(id)
+	return user.Login, err
 }
 
 // claimCheck is run by the claim workflow on a registry PR (REG-2).
@@ -426,6 +455,7 @@ func (a *app) claimCheck(args []string) error {
 	pr := fs.Int("pr", 0, "")
 	base := fs.String("base", "registry/names.json", "")
 	merge := fs.Bool("merge", false, "")
+	bot := fs.String("bot", envOr("SPECFORK_BOT_LOGIN", registry.DefaultBot), "") // REG-9
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
@@ -445,11 +475,10 @@ func (a *app) claimCheck(args []string) error {
 	if err != nil {
 		return err
 	}
-	var problems []string
-	for _, f := range files {
-		if f != "registry/names.json" {
-			problems = append(problems, "a claim PR may only change registry/names.json, not "+f)
-		}
+	problems := registry.FileProblems(files)
+	author := p.User.Login
+	if len(problems) == 0 {
+		author, problems = registry.Author(author, p.Body, *bot, userLookup{gh})
 	}
 	verdict := registry.Verdict{}
 	if len(problems) == 0 {
@@ -461,7 +490,7 @@ func (a *app) claimCheck(args []string) error {
 		if err != nil {
 			problems = append(problems, err.Error())
 		} else {
-			verdict = registry.CheckClaim(baseNames, headNames, p.User.Login, gh)
+			verdict = registry.CheckClaim(baseNames, headNames, author, gh)
 			problems = append(problems, verdict.Problems...)
 		}
 	}

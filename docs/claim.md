@@ -4,7 +4,9 @@ A spec's name, like `@your-login/booking`, is claimed once and then belongs to t
 
 ## How
 
-Open a pull request on [specfork/specfork](https://github.com/specfork/specfork) that adds one entry to `registry/names.json`:
+The quick way: sign in with GitHub on this page, pick one of your repos with the `specfork` topic and press Claim. Specfork runs the checks below and opens the pull request for you; the same workflow merges it. You grant only `read:user`.
+
+Or by hand. Open a pull request on [specfork/specfork](https://github.com/specfork/specfork) that adds one entry to `registry/names.json`:
 
 ```json
 "@your-login/booking": {"repo_id": 123, "owner_id": 456, "repo": "your-login/booking", "claimed_at": "2026-10-22", "state": "active"}

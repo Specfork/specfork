@@ -30,6 +30,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # MCP-9: usage counters from the hosted server; unset builds the site without numbers.
           SPECFORK_STATS_URL: ${{ vars.SPECFORK_STATS_URL }}
+          # WEB-18: scores from the API's /scores.json; unset builds the site without scores.
+          SPECFORK_SCORES_URL: ${{ vars.SPECFORK_SCORES_URL }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

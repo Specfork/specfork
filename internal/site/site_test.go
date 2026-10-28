@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/specfork/specfork/internal/index"
+	"github.com/specfork/specfork/internal/scores"
 	"github.com/specfork/specfork/internal/stats"
 	"github.com/specfork/specfork/internal/testfx"
 )
@@ -267,5 +268,92 @@ func TestSiteCounters(t *testing.T) {
 		if s := none(p); strings.Contains(s, "resolves in") {
 			t.Errorf("%s shows counters without data", p)
 		}
+	}
+}
+
+func buildWith(t *testing.T, sc []scores.Score) func(string) string {
+	t.Helper()
+	ix, fetch := testfx.Seeds(t)
+	dir := t.TempDir()
+	if err := Generate(ix, dir, Options{Fetcher: fetch, DocsDir: "../../docs", Install: "../../install.sh", Scores: sc}); err != nil {
+		t.Fatal(err)
+	}
+	return func(p string) string {
+		b, err := os.ReadFile(filepath.Join(dir, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+}
+
+// WEB-18
+func TestSiteScores(t *testing.T) {
+	read := buildWith(t, []scores.Score{{Spec: "@specfork/scheduling", Average: 4.26, Count: 12}, {Spec: "@specfork/auth", Average: 0, Count: 0}})
+	must(t, read("specfork/scheduling/index.html"), "spec page", `★ <strong>4.3</strong> (12 scores)`)
+	must(t, read("index.html"), "home", `★ 4.3 (12)`)
+	if strings.Contains(read("specfork/auth/index.html"), "★") || strings.Contains(read("index.html"), "★ 0") {
+		t.Error("a spec without scores shows a score")
+	}
+	if strings.Contains(buildWith(t, nil)("index.html"), "★") {
+		t.Error("no data must show no scores")
+	}
+}
+
+// WEB-19
+func TestSiteScoreBox(t *testing.T) {
+	p := buildWith(t, nil)("specfork/scheduling/index.html")
+	must(t, p, "spec page", `data-score-box`, `data-api="https://api.specfork.dev"`, `data-spec="@specfork/scheduling"`, "No scores yet.", `href="/docs/privacy/"`)
+	js := buildWith(t, nil)("app.js")
+	must(t, js, "app.js", "Sign in with GitHub to score", "Remove my score", "Sign out", `"PUT"`)
+}
+
+// WEB-20
+func TestSiteClaimBox(t *testing.T) {
+	read := buildWith(t, nil)
+	must(t, read("docs/claim/index.html"), "claim doc", `data-claim-box`, "one click", "registry/names.json")
+	if strings.Contains(read("docs/publish/index.html"), "data-claim-box") {
+		t.Error("claim box on another page")
+	}
+	must(t, read("app.js"), "app.js", "/claim/repos", `"/claim"`)
+}
+
+// WEB-21, WEB-16
+func TestSiteScriptFirstParty(t *testing.T) {
+	read := buildWith(t, nil)
+	for _, p := range []string{"index.html", "specfork/scheduling/index.html", "docs/claim/index.html"} {
+		page := read(p)
+		for _, m := range regexp.MustCompile(`<script[^>]*src="([^"]+)"`).FindAllStringSubmatch(page, -1) {
+			if !strings.HasPrefix(m[1], "/app.js") {
+				t.Errorf("%s loads script %s", p, m[1])
+			}
+		}
+		if strings.Contains(page, "Set-Cookie") || strings.Contains(page, "document.cookie") {
+			t.Errorf("%s sets cookies", p)
+		}
+	}
+	// The script talks to the API host from data-api only.
+	hosts := regexp.MustCompile(`https?://[a-z0-9.-]+`).FindAllString(read("app.js"), -1)
+	if len(hosts) != 0 {
+		t.Errorf("app.js names hosts: %v", hosts)
+	}
+}
+
+// WEB-22
+func TestSiteScoresPrivacyPage(t *testing.T) {
+	read := buildWith(t, nil)
+	must(t, read("docs/privacy/index.html"), "privacy", "GitHub user ID", "No email address", "DELETE https://api.specfork.dev/me")
+	must(t, read("index.html"), "footer", `href="/docs/privacy/"`)
+}
+
+// IDX-14, IDX-15: scores change pages, never index.json.
+func TestCrawlScoresOptional(t *testing.T) {
+	with := buildWith(t, []scores.Score{{Spec: "@specfork/scheduling", Average: 5, Count: 1}})("index.json")
+	without := buildWith(t, nil)("index.json")
+	if with != without || strings.Contains(with, "average") {
+		t.Error("index.json depends on scores")
+	}
+	if _, err := scores.Fetch("http://127.0.0.1:1/scores.json"); err == nil {
+		t.Error("an unreachable scores URL must be an error the crawl can skip")
 	}
 }

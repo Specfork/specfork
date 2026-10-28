@@ -315,7 +315,8 @@ func (c *Client) Permission(full, user string) (string, error) {
 
 // PR is the subset of pull request fields the claim check reads.
 type PR struct {
-	Number int `json:"number"`
+	Number int    `json:"number"`
+	Body   string `json:"body"`
 	User   struct {
 		Login string `json:"login"`
 	} `json:"user"`

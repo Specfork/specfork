@@ -9,6 +9,7 @@
       {{range .Spec.Tags}}<a class="tag" href="/?tag={{.}}#specs">{{.}}</a>{{end}}
       <span>Version <strong>{{.Content.Version}}</strong></span>
       {{if .Content.Requirements}}<span><strong>{{.Content.Requirements}}</strong> requirements</span>{{end}}
+      {{with .Score}}<span class="score">★ <strong>{{printf "%.1f" .Average}}</strong> ({{.Count}} score{{if ne .Count 1}}s{{end}})</span>{{end}}
       {{with .Resolves}}<span><strong>{{.Last30}}</strong> resolves in 30 days, <strong>{{.Total}}</strong> in 90</span>{{end}}
       <span>Licence <strong>{{.Spec.License}}</strong></span>
       <a href="https://github.com/{{.Spec.Repo}}">{{.Spec.Repo}}</a>
@@ -39,6 +40,13 @@
     <p class="small">Or let the agent fetch it over MCP:</p>
     <div class="cmd"><code>claude mcp add specfork -- npx -y specfork mcp</code><button type="button" class="copy" data-copy="claude mcp add specfork -- npx -y specfork mcp">Copy</button></div>
     <p class="small"><a href="/docs/">Install and setup</a></p>
+  </section>
+
+  <section class="box score-box" data-score-box data-api="{{.API}}" data-spec="{{.Spec.Name}}">
+    <h2>Score</h2>
+    {{with .Score}}<p class="small">Average <strong>{{printf "%.1f" .Average}}</strong> of 5 from {{.Count}} score{{if ne .Count 1}}s{{end}}.</p>{{else}}<p class="small muted">No scores yet.</p>{{end}}
+    <p class="small" data-score-ui hidden></p>
+    <p class="small muted"><a href="/docs/privacy/">What Specfork stores</a></p>
   </section>
 
   <section class="box">

@@ -23,3 +23,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
+          # REG-9: login of the Specfork GitHub App, whose PRs name their claimant; unset uses the default.
+          SPECFORK_BOT_LOGIN: ${{ vars.SPECFORK_BOT_LOGIN }}
