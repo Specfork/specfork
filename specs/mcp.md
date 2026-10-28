@@ -1,6 +1,6 @@
 # MCP
 
-**Status:** Live · **Prefix:** MCP
+**Status:** Live: MCP-1..MCP-9 · **Prefix:** MCP
 
 ## Purpose
 
@@ -19,6 +19,9 @@ Let any agent find and resolve specs through MCP.
 | MCP-7 | Each tool call adds 1 to a counter keyed `(UTC day, tool, spec name)`; `search_specs` has an empty spec name; failed calls and names not in the index count under `unknown`. Nothing else is stored or logged: no IP, user agent, headers, query text or session ID. | TestCounterKey, TestCounterNoPersonalData |
 | MCP-8 | `GET /stats.json` returns the daily counters (`day`, `tool`, `spec`, `count`) for the last 90 days, public and cacheable for 5 minutes. | TestStatsJSON |
 | MCP-9 | Spec pages and the catalogue show resolves per spec (last 30 days and last 90 days, the window `/stats.json` serves) from `/stats.json` at site build; with no data the numbers are omitted, never shown as 0. | TestSiteCounters |
+| MCP-10 | Counters (MCP-7) are rows in the Postgres table `counters(day, tool, spec, count)`, primary key `(day, tool, spec)`, incremented by one atomic upsert per call; no file is used. | TestCounterPostgres |
+| MCP-11 | The hosted server answers `/mcp` on both `mcp.specfork.dev` and `api.specfork.dev` ([API-1](api.md)), and `/stats.json` on both with the same body. | TestServeBothHosts |
+| MCP-12 | If Postgres is down, tool calls still succeed and the count is dropped; `/stats.json` returns `503`. | TestToolsWithoutDB |
 
 ## Out of scope
 
@@ -30,6 +33,6 @@ Let any agent find and resolve specs through MCP.
 
 - Stdio first: works today with no hosting; the hosted server reuses the same tools.
 - Counters are the only state: a daily aggregate cannot be traced to a person, so no consent banner is needed; the privacy statement is published on `/docs/`.
-- Host: Cloudflare Workers with a D1 table for counters; DNS is already at Cloudflare (IDX), and the host is outside GitHub Pages/Actions as IDX requires before anything commercial.
+- Host: the VPS, as the app `specfork` with Postgres, together with the rest of the [API](api.md) (changed from Cloudflare Workers + D1: one stack, not two). DNS stays at Cloudflare, and the host is outside GitHub Pages/Actions as IDX requires before anything commercial.
 - Domain: `mcp.specfork.dev`, the existing domain; a later rename changes the hostname, and stdio users are unaffected.
 - Site stays static: counters enter at build via `/stats.json` (daily rebuild), not by browser calls, keeping WEB-16 (no third-party scripts).

@@ -25,16 +25,21 @@ https://specfork.dev: find a spec, read it, and build it with your agent. Static
 | WEB-13 | JSON-LD: the home page has `WebSite` with a `SearchAction` on `/?q={search_term_string}`; each spec page has `CreativeWork` with name, description, version, license, url, author and `isBasedOn` (derived_from). | TestSEO |
 | WEB-14 | `sitemap.xml` lists home, docs and every spec page, with `lastmod` from the spec's `pushed_at`; `robots.txt` allows all and names the sitemap. | TestSEO |
 | WEB-15 | `llms.txt`: what Specfork is, how to use it (CLI, MCP, `index.json`), and one line per spec with its page URL and summary. | TestSEO |
-| WEB-16 | No third-party scripts, fonts, trackers or cookies; usable at 360 px; light and dark themes. | manual: network tab, phone width |
+| WEB-16 | No third-party scripts, fonts, trackers or cookies (WEB-21 allows the first-party script); usable at 360 px; light and dark themes. | manual: network tab, phone width |
 | WEB-17 | Feedback: `/docs/feedback/` and a "Feedback" link in the header and footer; GitHub issue forms on `specfork/specfork` for feedback, spec requests and spec problems, plus Discussions; every spec page links to the problem form with the spec name prefilled; an empty search links to the request form. | TestFeedbackLinks |
+| WEB-18 | Spec pages and catalogue cards show the average score (1 decimal) and number of scores from `/scores.json` at site build; a spec without scores shows nothing, never 0. | TestSiteScores |
+| WEB-19 | The spec page has a score box: signed out, a "Sign in with GitHub to score" link to `api.specfork.dev/auth/github/login`; signed in, five buttons (1–5) showing the user's score, plus "Remove my score" and "Sign out". Without JavaScript the box shows only the built average. | TestSiteScoreBox; manual: score and remove in a browser |
+| WEB-20 | `/docs/claim/` has a one-click claim section: signed in, it lists the user's claimable repos ([API-22](api.md)) with a "Claim" button that calls `POST /claim` and links the PR, or shows the failures; the hand-written PR steps stay on the page. | TestSiteClaimBox; manual: claim a test repo |
+| WEB-21 | The only script the site adds is first-party (`/assets/specfork.js`); it calls only `https://api.specfork.dev`, only when the page has a score or claim box, and the site sets no cookies itself. | TestSiteScriptFirstParty |
+| WEB-22 | `/docs/privacy/` states what is stored (GitHub user ID, login, last sign-in time, scores, daily counters), what is not (email, passwords, tokens, IP, spec text), and how to delete the account; it is linked from the footer and the score box. | TestSitePages |
 | WEB-23 | `https://specfork.dev/install.sh` serves the CLI-15 script as `text/plain`, byte for byte the file in this repo. | TestSitePages |
 | WEB-24 | The README and `/docs/` lead with `npx specfork …`, and list `npm i -g specfork`, `brew install specfork/tap/specfork`, the `curl -fsSL https://specfork.dev/install.sh \| sh` line and `go install` as the other ways; `/llms.txt` names the same ways. | TestSitePages, TestSEO |
 
 ## Out of scope
 
 - Usage numbers on pages: defined in MCP-9; shown only with real data, no empty counters.
-- Accounts, stars or comments on the site.
-- A feedback form without a GitHub account: comes with the hosted layer and its database.
+- Comments on the site; accounts beyond sign-in for scores and claims ([API](api.md)).
+- A feedback form without a GitHub account.
 
 ## Decisions
 

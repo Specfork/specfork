@@ -1,6 +1,6 @@
 # Index
 
-**Status:** Live · **Prefix:** IDX
+**Status:** Live: IDX-1..IDX-9 · **Prefix:** IDX
 
 ## Purpose
 
@@ -22,6 +22,9 @@ Find spec and implementation repos on GitHub and publish one `index.json`. The i
 | IDX-10 | (Draft) Build results are records `{spec, version_sha, tier, model, checks_passed, checks_total, cost_usd, ran_at}`, published by the runner to `builds.json` in this repo; the crawler reads that file only. Tiers come from `tiers.json` (ordered cheapest first). A record whose `version_sha` matches no indexed version is dropped. | TestBuildsRead, TestBuildUnknownSha |
 | IDX-11 | (Draft) A version's `builds_with` is the cheapest tier with a record where `checks_passed == checks_total` and `checks_total > 0`; with the lowest `cost_usd` among that tier's records as `cost_usd`. No such record → `builds_with` is `null` (never "none" or a guess). | TestBuildsWith, TestBuildsWithNone |
 | IDX-12 | (Draft) `index.json` versions gain `builds_with: {tier, cost_usd} \| null` and `builds: [{tier, model, checks_passed, checks_total, cost_usd}]`; `specfork info` ([CLI-2](cli.md)) and the spec page ([WEB](site.md)) show "builds with: <tier>" or "not yet measured". | TestIndexSchema, TestInfoBuildsWith |
+| IDX-13 | The hosted server stores no spec text: only names, scores, accounts and counters ([API-14](api.md)). Spec content stays in the authors' repos and is rendered at site build. | TestSchemaColumns |
+| IDX-14 | `index.json` carries no scores or counters; they enter the site at build from `/scores.json` and `/stats.json`, so score changes never alter change detection (IDX-5). | TestIndexSchema |
+| IDX-15 | The crawl treats `/scores.json` and `/stats.json` as optional: if either cannot be fetched within 10 s, the build goes on without it and `index.json` is unchanged. | TestCrawlScoresOptional |
 
 ## Out of scope
 
@@ -34,4 +37,5 @@ Find spec and implementation repos on GitHub and publish one `index.json`. The i
 - Tiers are data (`tiers.json`), not code: which models count as "cheap" can change without a release.
 - Published to Pages, not committed: no bot commits in `main`; the previous index on the site is the crawler's memory.
 - The site is served by GitHub Pages at the custom domain `specfork.dev` (DNS at Cloudflare, records in `deploy/dns/`); `specfork.github.io/specfork` redirects there.
+- The server (API, MCP, Postgres) runs on the VPS, outside Pages and Actions; only the static site and the crawl stay on Pages for now.
 - GitHub Pages and Actions fit GitHub's terms while Specfork is non-commercial and the crawl publishes this project's own site (≈25 API calls/hour). Before charging for anything, move the site and crawler to paid hosting: Pages is not for running a business.
