@@ -201,6 +201,7 @@ func TestLoginReturnPath(t *testing.T) {
 		"javascript:alert(1)":        "/",
 		"":                           "/",
 		"http://specfork.dev/docs/":  "/",
+
 		"https://specfork.dev.evil.example/docs/": "/",
 	} {
 		if got := e.s.returnPath(in); got != want {
