@@ -1,6 +1,6 @@
 # API
 
-**Status:** Draft · **Prefix:** API
+**Status:** Live · **Prefix:** API
 
 ## Purpose
 
@@ -33,7 +33,7 @@ The one server behind specfork.dev: GitHub sign-in, scores, one-click claims. It
 | API-21 | The server reads the site's `index.json` for active names and keeps it for 10 minutes; if it cannot be fetched it keeps serving the last copy, and answers `503` if there is none. | TestIndexCache |
 | API-22 | `GET /claim/repos` (signed in) lists the user's own repos with topic `specfork` whose name is not in `names.json`: `{repo, repo_id, name, claimable, failures}`, where `name` is the README front matter `name`. Reads use the Specfork GitHub App, not the user's token. | TestClaimRepos |
 | API-23 | `POST /claim` with `{"repo_id"}` (signed in) runs the REG-2 checks for that repo with the signed-in user as claimant, using the same code as the `claim` workflow; any failure returns `422` with the list and opens nothing. | TestClaimChecksServer |
-| API-24 | When the checks pass, the server pushes a branch `claim/<name>` to `specfork/specfork` as the Specfork GitHub App, adds only the new entry to `registry/names.json`, opens a PR whose body has the line `Claimant: <github_id>`, and returns `201 {pr_url}`. | TestClaimOpensPR |
+| API-24 | When the checks pass, the server pushes a branch `claim/<name>` (the name as is, for example `claim/@ann/booking`) to `specfork/specfork` as the Specfork GitHub App, adds only the new entry to `registry/names.json`, opens a PR whose body has the line `Claimant: <github_id>`, and returns `201 {pr_url}`. | TestClaimOpensPR |
 | API-25 | A claim for a name that already has an open claim PR from the bot returns `200` with that PR's URL and opens nothing new. | TestClaimIdempotent |
 | API-26 | If GitHub fails or is rate limited during sign-in, a score check or a claim, the response is `502 {"error":"github_unavailable"}` and nothing is written. | TestGitHubDown |
 

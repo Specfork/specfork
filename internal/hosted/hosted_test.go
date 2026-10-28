@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"log/slog"
@@ -177,5 +178,27 @@ func TestStatsJSON(t *testing.T) {
 	}
 	if res, err := http.Post(ts.URL+"/stats.json", "application/json", nil); err != nil || res.StatusCode == 200 {
 		t.Fatalf("POST should not be served: %v %v", res, err)
+	}
+}
+
+// downStore is a counter store whose database is gone.
+type downStore struct{ *stats.Memory }
+
+func (downStore) Add(stats.Key) error                    { return errors.New("db down") }
+func (downStore) RowsErr(time.Time) ([]stats.Row, error) { return nil, errors.New("db down") }
+
+// MCP-12
+func TestToolsWithoutDB(t *testing.T) {
+	ts, cs := setup(t, downStore{stats.NewMemory()}, nil)
+	if r := call(t, cs, "resolve_spec", map[string]any{"name": "@specfork/scheduling"}); r.IsError {
+		t.Fatalf("tool call failed with the database down: %+v", r)
+	}
+	res, err := http.Get(ts.URL + "/stats.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("stats.json status %d", res.StatusCode)
 	}
 }

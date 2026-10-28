@@ -8,6 +8,15 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: specfork_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -18,3 +27,5 @@ jobs:
       - run: CGO_ENABLED=0 go build ./...
       - run: go vet ./...
       - run: go test ./...
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/specfork_test?sslmode=disable

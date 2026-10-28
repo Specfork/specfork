@@ -163,6 +163,11 @@ func TestIndexSchema(t *testing.T) {
 			t.Errorf("version missing %s", k)
 		}
 	}
+	for _, k := range []string{"score", "scores", "average", "resolves", "count"} { // IDX-14
+		if _, ok := spec[k]; ok {
+			t.Errorf("index.json carries %s", k)
+		}
+	}
 	if raw["generated_at"] != "2026-10-22T12:00:00Z" || raw["unclaimed"] == nil {
 		t.Errorf("top level %v", raw)
 	}

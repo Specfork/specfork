@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -137,5 +138,97 @@ func TestCommittedRegistry(t *testing.T) {
 	}
 	if p := n.Validate(); len(p) > 0 {
 		t.Fatal(p)
+	}
+}
+
+type fakeUsers map[int64]string
+
+func (f fakeUsers) LoginByID(id int64) (string, error) {
+	if l, ok := f[id]; ok {
+		return l, nil
+	}
+	return "", ghapi.ErrNotFound
+}
+
+// REG-9
+func TestClaimBotClaimant(t *testing.T) {
+	users := fakeUsers{1: "ann"}
+	author, probs := Author(DefaultBot, "Claim @ann/booking.\n\nClaimant: 1\n", DefaultBot, users)
+	if author != "ann" || len(probs) != 0 {
+		t.Fatalf("author %q, %v", author, probs)
+	}
+	// The claimant's rights decide, not the bot's.
+	v := CheckClaim(names(map[string]Entry{}), names(map[string]Entry{"@ann/booking": entry(10, 1, "ann/booking")}), author, gh())
+	if !v.OK() {
+		t.Fatalf("claimant refused: %v", v.Problems)
+	}
+	if v := CheckClaim(names(map[string]Entry{}), names(map[string]Entry{"@ann/booking": entry(10, 1, "ann/booking")}), DefaultBot, gh()); v.OK() {
+		t.Fatal("the bot is not the repo owner")
+	}
+	// REG-12: a claimant who is not the owner or an admin is refused.
+	users[2] = "eve"
+	eve, _ := Author(DefaultBot, "Claimant: 2", DefaultBot, users)
+	if v := CheckClaim(names(map[string]Entry{}), names(map[string]Entry{"@acme/crm": entry(20, 2, "acme/crm")}), eve, gh()); v.OK() {
+		t.Fatal("a non-admin claimant was accepted")
+	}
+	for _, body := range []string{"", "Claimant: abc", "Claimant: 1\nClaimant: 2", "claimant: 1"} {
+		if _, probs := Author(DefaultBot, body, DefaultBot, users); len(probs) == 0 {
+			t.Errorf("body %q accepted", body)
+		}
+	}
+	if _, probs := Author(DefaultBot, "Claimant: 99", DefaultBot, users); len(probs) == 0 {
+		t.Error("unknown claimant accepted")
+	}
+}
+
+// REG-9
+func TestClaimBotLineIgnored(t *testing.T) {
+	author, probs := Author("mallory", "Claimant: 1", DefaultBot, fakeUsers{1: "ann"})
+	if author != "mallory" || len(probs) != 0 {
+		t.Fatalf("a Claimant line from a normal user changed the author: %q %v", author, probs)
+	}
+}
+
+// REG-10
+func TestClaimBotOnlyNames(t *testing.T) {
+	if p := FileProblems([]string{"registry/names.json"}); len(p) != 0 {
+		t.Fatal(p)
+	}
+	p := FileProblems([]string{"registry/names.json", ".github/workflows/claim.yml"})
+	if len(p) != 1 || !strings.Contains(p[0], ".github/workflows/claim.yml") {
+		t.Fatalf("got %v", p)
+	}
+}
+
+// REG-11: a new entry changes nothing else in names.json.
+func TestAddEntryKeepsOthers(t *testing.T) {
+	raw, err := os.ReadFile("../../registry/names.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := AddEntry(raw, "@zed/new", entry(5, 6, "zed/new"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := Parse(raw)
+	after, err := Parse(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Names) != len(before.Names)+1 || after.Names["@zed/new"].RepoID != 5 {
+		t.Fatal("entry not added")
+	}
+	for k, v := range before.Names {
+		if after.Names[k] != v {
+			t.Errorf("%s changed", k)
+		}
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if l := strings.TrimSuffix(strings.TrimSpace(line), ","); l != "" && !strings.Contains(string(out), l) {
+			t.Errorf("line lost: %s", line)
+		}
+	}
+	if _, err := AddEntry(raw, "@specfork/auth", entry(5, 6, "x/y")); err == nil {
+		t.Error("an existing name was overwritten")
 	}
 }

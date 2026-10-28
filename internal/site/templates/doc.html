@@ -1,6 +1,11 @@
 {{template "top" .}}
 <div class="doc">
   <nav class="doc-nav" aria-label="Docs"><ul class="plain">{{range .Docs}}<li><a href="{{.Path}}"{{if eq .Path $.Path}} aria-current="page"{{end}}>{{.Title}}</a></li>{{end}}</ul></nav>
-  <article class="prose doc-body">{{.HTML}}</article>
+  <article class="prose doc-body">{{.HTML}}
+  {{if .Claim}}<section class="box" data-claim-box data-api="{{.API}}" hidden>
+    <h2>Claim with one click</h2>
+    <p class="small" data-claim-ui>Sign in with GitHub to see your repos that can be claimed.</p>
+  </section>{{end}}
+  </article>
 </div>
 {{template "bottom" .}}
