@@ -172,3 +172,45 @@ func TestIndexFetch(t *testing.T) {
 		t.Fatalf("%v %v", ix, err)
 	}
 }
+
+// CLI-16
+func TestVersion(t *testing.T) {
+	old := buildVersion
+	defer func() { buildVersion = old }()
+	for _, arg := range []string{"--version", "version"} {
+		buildVersion = ""
+		a, out, _ := newApp(t)
+		if code := a.run([]string{arg}); code != exitOK || strings.TrimSpace(out.String()) != "specfork dev" {
+			t.Errorf("%s source build: exit %d, %q", arg, code, out)
+		}
+		buildVersion = "v1.2.3"
+		a, out, _ = newApp(t)
+		if code := a.run([]string{arg}); code != exitOK || strings.TrimSpace(out.String()) != "specfork 1.2.3" {
+			t.Errorf("%s release build: exit %d, %q", arg, code, out)
+		}
+	}
+}
+
+// CLI-17
+func TestAddAlias(t *testing.T) {
+	run := func(cmd string) (string, int) {
+		a, out, errb := newApp(t)
+		dir := t.TempDir()
+		wd, _ := os.Getwd()
+		os.Chdir(dir)
+		defer os.Chdir(wd)
+		code := a.run([]string{cmd, "@specfork/scheduling", "--out", "bundle"})
+		lock, _ := os.ReadFile(filepath.Join(dir, "specfork.lock"))
+		bundle, _ := os.ReadFile(filepath.Join(dir, "bundle", "BUNDLE.md"))
+		return out.String() + errb.String() + string(lock) + string(bundle), code
+	}
+	want, wantCode := run("resolve")
+	got, gotCode := run("add")
+	if wantCode != exitOK || gotCode != wantCode || got != want || !strings.Contains(got, "@specfork/auth") {
+		t.Fatalf("add differs from resolve: exit %d vs %d\n%s\n---\n%s", gotCode, wantCode, got, want)
+	}
+	a, _, _ := newApp(t)
+	if code := a.run([]string{"add"}); code != exitUsage {
+		t.Errorf("add without a name: exit %d", code)
+	}
+}

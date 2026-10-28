@@ -31,7 +31,7 @@ func build(t *testing.T, mutate func(*index.Index)) (string, func(string) string
 		mutate(ix)
 	}
 	dir := t.TempDir()
-	if err := Generate(ix, dir, Options{Fetcher: fetch, DocsDir: "../../docs"}); err != nil {
+	if err := Generate(ix, dir, Options{Fetcher: fetch, DocsDir: "../../docs", Install: "../../install.sh"}); err != nil {
 		t.Fatal(err)
 	}
 	return dir, func(p string) string {
@@ -52,7 +52,7 @@ func must(t *testing.T, page, label string, wants ...string) {
 	}
 }
 
-// WEB-1, WEB-2, WEB-11
+// WEB-1, WEB-2, WEB-11, WEB-23, WEB-24
 func TestSitePages(t *testing.T) {
 	_, read := build(t, nil)
 	for _, p := range []string{"index.html", "specfork/scheduling/index.html", "specfork/auth/index.html", "docs/index.html", "docs/publish/index.html", "docs/claim/index.html", "docs/feedback/index.html", "404.html", "index.json", "sitemap.xml", "robots.txt", "llms.txt", "og.png", "style.css", "app.js", ".nojekyll"} {
@@ -63,6 +63,29 @@ func TestSitePages(t *testing.T) {
 	must(t, docs, "docs", "<h1", "Use Specfork with your agent", `href="/docs/publish/"`, `aria-current="page"`, `href="/#specs"`)
 	if strings.Contains(docs, "blob/main/docs/publish.md") {
 		t.Error("doc links not rewritten to site paths")
+	}
+
+	// WEB-24: npx first, then the other ways to install.
+	i := strings.Index(docs, "npx specfork")
+	if i < 0 || i > strings.Index(docs, "go install") {
+		t.Error("docs do not lead with npx specfork")
+	}
+	must(t, docs, "docs", "npm i -g specfork", "brew install specfork/tap/specfork", "curl -fsSL https://specfork.dev/install.sh | sh", "go install github.com/specfork/specfork/cmd/specfork@latest", "claude mcp add specfork -- npx -y specfork mcp")
+	readme, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if i := strings.Index(string(readme), "npx specfork"); i < 0 || i > strings.Index(string(readme), "go install") {
+		t.Error("README does not lead with npx specfork")
+	}
+
+	// WEB-23: the install script is served byte for byte.
+	want, err := os.ReadFile("../../install.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read("install.sh") != string(want) || !strings.HasPrefix(read("install.sh"), "#!/bin/sh\n") {
+		t.Error("install.sh differs from the file in the repo")
 	}
 }
 
@@ -92,7 +115,7 @@ func TestSiteCatalogue(t *testing.T) {
 func TestSpecPage(t *testing.T) {
 	_, read := build(t, nil)
 	p := read("specfork/scheduling/index.html")
-	must(t, p, "scheduling", "specfork resolve @specfork/scheduling", "claude mcp add specfork -- specfork mcp", `class="copy"`,
+	must(t, p, "scheduling", "npx specfork resolve @specfork/scheduling", "claude mcp add specfork -- npx -y specfork mcp", `class="copy"`,
 		`href="/specfork/auth/"`, `href="/specfork/teams/"`, `href="/specfork/webhooks/"`, "requirements in total",
 		"someone/scheduling-go", "https://example.com", "github.com/calcom/cal.com", "0.1.0 · ")
 	must(t, read("specfork/auth/index.html"), "auth", "Required by", `href="/specfork/scheduling/"`)
@@ -192,7 +215,7 @@ func TestSEO(t *testing.T) {
 	}
 	must(t, read("sitemap.xml"), "sitemap", "<loc>https://specfork.dev/specfork/scheduling/</loc><lastmod>2026-10-20</lastmod>", "<loc>https://specfork.dev/docs/claim/</loc>")
 	must(t, read("robots.txt"), "robots", "Sitemap: https://specfork.dev/sitemap.xml")
-	must(t, read("llms.txt"), "llms", "# Specfork", "specfork resolve", "[@specfork/scheduling](https://specfork.dev/specfork/scheduling/)")
+	must(t, read("llms.txt"), "llms", "# Specfork", "npx specfork resolve", "npm i -g specfork", "brew install specfork/tap/specfork", "curl -fsSL https://specfork.dev/install.sh | sh", "go install github.com/specfork/specfork/cmd/specfork@latest", "claude mcp add specfork -- npx -y specfork mcp", "[@specfork/scheduling](https://specfork.dev/specfork/scheduling/)")
 }
 
 // WEB-17
@@ -215,7 +238,7 @@ func TestSiteCounters(t *testing.T) {
 	gen := func(rows []stats.Row) func(string) string {
 		ix, fetch := testfx.Seeds(t)
 		dir := t.TempDir()
-		if err := Generate(ix, dir, Options{Fetcher: fetch, DocsDir: "../../docs", Stats: rows, Now: now}); err != nil {
+		if err := Generate(ix, dir, Options{Fetcher: fetch, DocsDir: "../../docs", Install: "../../install.sh", Stats: rows, Now: now}); err != nil {
 			t.Fatal(err)
 		}
 		return func(p string) string {
