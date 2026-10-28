@@ -18,4 +18,5 @@ Short but technical: interfaces, fields, formulas, limits. ~30 lines per spec.
 | [compose.md](compose.md) | CMP | `requires`, version selection, global IDs, overrides, lockfile, bundle |
 | [cli.md](cli.md) | CLI | `specfork search`, `info`, `resolve`, `lint` |
 | [mcp.md](mcp.md) | MCP | MCP server for agents, usage counters |
+| [api.md](api.md) | API | `specfork serve` backend: GitHub sign-in, scores, one-click claims |
 | [extract.md](extract.md) | EXT | Seed pipeline: extract from open-source app, factor bases, rebuild, publish |
