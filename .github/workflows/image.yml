@@ -1,0 +1,37 @@
+# API-6, API-30, infra DEP-1, DEP-13: image ghcr.io/specfork/specfork:sha-<commit>, scanned and signed by the
+# synced app-image.yml, then deployed by the synced deploy.yml. Every merge to main builds and deploys, so the
+# live commit always matches main.
+name: image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  image:
+    name: "Docker: build, scan, sign image"
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/app-image.yml
+    with:
+      app: specfork
+
+  deploy:
+    name: "Deploy: specfork to the VPS"
+    needs: image
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      app: specfork
+      url: https://api.specfork.dev
+    secrets:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}

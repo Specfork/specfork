@@ -1,5 +1,6 @@
-# CLI-10..14: release-please opens the release PR; merging it tags v*, then this workflow builds the
-# binaries, attests them, publishes the npm packages and updates the Homebrew tap.
+# CLI-10..14: release-please opens the release PR and approves the CI runs GitHub holds on it (MajidBabaeifar/ci
+# REPO-5); merging it tags v*, then this workflow builds the binaries, attests them, publishes the npm packages and
+# updates the Homebrew tap. Not the synced shared release.yml: that one exposes no outputs for the jobs below.
 # npm trusted publishing is configured per package for repo Specfork/specfork, workflow release.yml.
 name: release
 on:
@@ -9,10 +10,12 @@ permissions:
   contents: read
 jobs:
   release-please:
+    name: "release-please: release PR, tag and GitHub release"
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      actions: write
     outputs:
       created: ${{ steps.rp.outputs.release_created }}
       tag: ${{ steps.rp.outputs.tag_name }}
@@ -24,7 +27,27 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # GitHub holds CI runs on a PR made with GITHUB_TOKEN for approval; approve the release PR's own runs.
+      - name: Approve CI on the release PR
+        if: steps.rp.outputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.rp.outputs.pr }}
+        run: |
+          branch=$(jq -r .headBranchName <<<"$PR")
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" -q .object.sha)
+          for _ in $(seq 18); do
+            ids=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$sha&status=action_required" -q '.workflow_runs[].id')
+            if [ -n "$ids" ]; then
+              for id in $ids; do gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/approve"; done
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::no CI run waiting for approval on $branch@$sha"
+
   assets:
+    name: "Go: release binaries, checksums, attestations"
     needs: release-please
     if: ${{ needs.release-please.outputs.created == 'true' }}
     runs-on: ubuntu-latest
@@ -56,6 +79,7 @@ jobs:
             dist/checksums.txt
 
   npm:
+    name: "npm: publish the CLI packages"
     needs: [release-please, assets]
     runs-on: ubuntu-latest
     permissions:
@@ -71,6 +95,9 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+      # Trusted publishing (OIDC) needs npm 11.5.1 or newer; the npm bundled with Node 24 may be older.
+      - name: npm 11.21.1
+        run: npm install -g npm@11.21.1 && npm --version
       - name: Build packages
         run: node npm/build.js "${{ needs.release-please.outputs.version }}" dist/bin dist/npm
       - name: Smoke test the host package
@@ -85,6 +112,7 @@ jobs:
           npm publish dist/npm/specfork --access public --provenance
 
   brew:
+    name: "Homebrew: update the formula in Specfork/homebrew-tap"
     needs: [release-please, assets]
     runs-on: ubuntu-latest
     permissions:
