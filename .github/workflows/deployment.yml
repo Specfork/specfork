@@ -1,0 +1,24 @@
+# API-30, infra DEP-16: deploy the commit a `production` Deployment asks for (a rollback, or the owner's choice).
+# Named deployment.yml because deploy.yml is the synced copy it calls.
+name: deployment
+
+on: deployment
+
+permissions: {}
+
+jobs:
+  deploy:
+    name: "Deploy: requested specfork commit to the VPS"
+    if: github.event.deployment.environment == 'production'
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      app: specfork
+      url: https://api.specfork.dev
+      deployment_id: ${{ format('{0}', github.event.deployment.id) }}
+    secrets:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
