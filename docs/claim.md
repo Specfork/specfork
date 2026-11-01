@@ -20,7 +20,7 @@ gh api repos/your-login/booking --jq '{repo_id: .id, owner_id: .owner.id}'
 
 ## What is checked
 
-A workflow checks the pull request and merges it when everything matches:
+A workflow checks the pull request and, when everything matches, merges it as soon as the repo's usual checks have passed (about a minute):
 
 - the name is free and well formed;
 - the scope is your GitHub login, lower-cased;

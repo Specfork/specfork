@@ -316,6 +316,7 @@ func (c *Client) Permission(full, user string) (string, error) {
 // PR is the subset of pull request fields the claim check reads.
 type PR struct {
 	Number int    `json:"number"`
+	NodeID string `json:"node_id"`
 	Body   string `json:"body"`
 	User   struct {
 		Login string `json:"login"`
@@ -358,4 +359,28 @@ func (c *Client) Comment(full string, n int, body string) error {
 
 func (c *Client) Merge(full string, n int, title string) error {
 	return c.Do("PUT", fmt.Sprintf("/repos/%s/pulls/%d/merge", full, n), map[string]string{"merge_method": "squash", "commit_title": title}, nil)
+}
+
+// AutoMerge has GitHub squash-merge the PR once main's required checks pass (REG-2). GitHub refuses
+// auto-merge on a PR that can already merge, so that one is merged at once.
+func (c *Client) AutoMerge(full string, pr PR, title string) error {
+	const q = `mutation($id: ID!, $title: String!) {
+  enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH, commitHeadline: $title}) { clientMutationId }
+}`
+	var res struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	body := map[string]any{"query": q, "variables": map[string]string{"id": pr.NodeID, "title": title}}
+	if err := c.Do("POST", "/graphql", body, &res); err != nil {
+		return err
+	}
+	if len(res.Errors) == 0 {
+		return nil
+	}
+	if msg := res.Errors[0].Message; !strings.Contains(msg, "clean status") {
+		return errors.New("enable auto-merge: " + msg)
+	}
+	return c.Merge(full, pr.Number, title)
 }
