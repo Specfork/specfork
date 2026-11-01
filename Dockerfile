@@ -1,5 +1,5 @@
 # API-6: a static binary, no shell, run as a non-root user on a read-only root filesystem.
-FROM golang:1.25 AS build
+FROM golang:1.27.3 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
