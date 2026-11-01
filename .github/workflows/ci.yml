@@ -29,3 +29,19 @@ jobs:
       - run: go test ./...
         env:
           TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/specfork_test?sslmode=disable
+
+  # The required check of the `main` ruleset (MajidBabaeifar/ci REPO-2, REPO-3). The job id stays `ci-ok` because
+  # the ruleset matches it; readable names for this repo's jobs wait for intent 261025-1407-5.
+  ci-ok:
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: All jobs passed or were skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "a job ended $r"; exit 1 ;; esac
+          done
