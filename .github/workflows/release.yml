@@ -2,6 +2,7 @@
 # REPO-5); merging it tags v*, then this workflow builds the binaries, attests them, publishes the npm packages and
 # updates the Homebrew tap. Not the synced shared release.yml: that one exposes no outputs for the jobs below.
 # npm trusted publishing is configured per package for repo Specfork/specfork, workflow release.yml.
+# npm stages these uploads: a version goes live only after the owner approves it on npmjs.com with 2FA (CLI-13).
 name: release
 on:
   push:
