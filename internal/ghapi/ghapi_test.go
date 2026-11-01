@@ -1,6 +1,7 @@
 package ghapi
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -95,5 +96,46 @@ func TestNotFound(t *testing.T) {
 	}
 	if _, err := c.Raw("a/b", "sha", "README.md"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("raw: %v", err)
+	}
+}
+
+// REG-2
+func TestAutoMerge(t *testing.T) {
+	for _, tc := range []struct {
+		name, graphql string
+		calls         []string
+		fails         bool
+	}{
+		{"waits for checks", `{"data":{"enablePullRequestAutoMerge":{"clientMutationId":null}}}`, []string{"POST /graphql"}, false},
+		{"already mergeable", `{"errors":[{"message":"Pull request Pull request is in clean status"}]}`, []string{"POST /graphql", "PUT /repos/a/b/pulls/7/merge"}, false},
+		{"other error", `{"errors":[{"message":"Auto merge is not allowed for this repository"}]}`, []string{"POST /graphql"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls = append(calls, r.Method+" "+r.URL.Path)
+				if r.URL.Path == "/graphql" {
+					var body struct {
+						Variables map[string]string `json:"variables"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Variables["id"] != "PR_x" || body.Variables["title"] != "chore(registry): claim @ann/booking" {
+						t.Errorf("graphql variables: %v %v", body.Variables, err)
+					}
+					fmt.Fprint(w, tc.graphql)
+					return
+				}
+				fmt.Fprint(w, `{"merged":true}`)
+			}))
+			defer srv.Close()
+			c := New("")
+			c.BaseURL = srv.URL
+			err := c.AutoMerge("a/b", PR{Number: 7, NodeID: "PR_x"}, "chore(registry): claim @ann/booking")
+			if (err != nil) != tc.fails {
+				t.Fatalf("err = %v", err)
+			}
+			if strings.Join(calls, ", ") != strings.Join(tc.calls, ", ") {
+				t.Fatalf("calls = %v, want %v", calls, tc.calls)
+			}
+		})
 	}
 }

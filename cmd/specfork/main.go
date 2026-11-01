@@ -497,7 +497,7 @@ func (a *app) claimCheck(args []string) error {
 	if len(problems) == 0 && verdict.OK() {
 		fmt.Fprintf(a.stdout, "claim ok: %s\n", strings.Join(verdict.Added, ", "))
 		if *merge {
-			if err := gh.Merge(*repo, *pr, "chore(registry): claim "+strings.Join(verdict.Added, ", ")); err != nil {
+			if err := gh.AutoMerge(*repo, p, "chore(registry): claim "+strings.Join(verdict.Added, ", ")); err != nil {
 				return err
 			}
 		}
