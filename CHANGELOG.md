@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Specfork/specfork/compare/v0.1.1...v0.1.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **claim:** auto-merge once required checks pass ([#33](https://github.com/Specfork/specfork/issues/33)) ([9a1e684](https://github.com/Specfork/specfork/commit/9a1e684cd9fd48e0f5e9c3e8c87c2e680e401e8a))
+
 ## [0.1.1](https://github.com/Specfork/specfork/compare/v0.1.0...v0.1.1) (2026-11-01)
 
 
