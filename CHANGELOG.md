@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Specfork/specfork/compare/v0.1.0...v0.1.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **deps:** Go 1.27.3, x/text 0.41.0 for image scan ([#31](https://github.com/Specfork/specfork/issues/31)) ([a9218d0](https://github.com/Specfork/specfork/commit/a9218d0a298490aa8753d659895a89ffd9989e3f))
+
 ## 0.1.0 (2026-11-01)
 
 
