@@ -1,0 +1,149 @@
+# Synced from MajidBabaeifar/ci@f88c443ce6ac .github/workflows/deploy.yml; edit there, not here.
+# CI-10 (infra DEP-13..21): deploy one commit to the owner's VPS and record it as a GitHub Deployment.
+# Called after app-image.yml on main (no deployment_id: creates one), and from an app's `on: deployment`
+# job (deployment_id: reports on that one).
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: App name under /srv/apps on the server
+        required: true
+        type: string
+      url:
+        description: The app's public URL, recorded as environment_url
+        required: true
+        type: string
+      deployment_id:
+        description: Deployment to report on; empty creates one for github.sha
+        type: string
+        default: ""
+    secrets:
+      TS_OAUTH_CLIENT_ID:
+        required: true
+      TS_OAUTH_SECRET:
+        required: true
+      DEPLOY_SSH_KEY:
+        required: true
+
+permissions: {}
+
+env:
+  VPS: 100.120.111.34
+  VPS_HOST_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKIMeZ/nLurBJR9xRMeqyiY78JDmejp6zwclrPbluodS
+
+jobs:
+  deploy:
+    name: "Deploy: commit to the VPS"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      deployments: write
+    # DEP-18: one deploy per app at a time; a running deploy is never cancelled.
+    concurrency:
+      group: deploy-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APP: ${{ inputs.app }}
+      URL: ${{ inputs.url }}
+      LOG_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Deployment (DEP-14, DEP-16)
+        id: dep
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+        run: |
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            read -r sha task environment < <(gh api "repos/$GITHUB_REPOSITORY/deployments/$DEPLOYMENT_ID" \
+              --jq '[.sha, .task, .environment] | @tsv')
+            id=$DEPLOYMENT_ID
+          else
+            sha=$GITHUB_SHA task=deploy environment=production
+            id=$(jq -n --arg sha "$sha" '{ref: $sha, environment: "production", task: "deploy",
+                auto_merge: false, required_contexts: [], description: "automatic deploy of main"}' |
+              gh api -X POST "repos/$GITHUB_REPOSITORY/deployments" --input - --jq .id)
+          fi
+          [[ $sha =~ ^[0-9a-f]{40}$ && $id =~ ^[0-9]+$ ]] || { echo "bad deployment: $id $sha"; exit 1; }
+          { echo "id=$id"; echo "sha=$sha"; echo "task=$task"; echo "environment=$environment"; } >> "$GITHUB_OUTPUT"
+          echo "deployment $id: $task of $sha to $environment"
+
+      - name: Guard (DEP-17, DEP-18)
+        id: guard
+        env:
+          ID: ${{ steps.dep.outputs.id }}
+          SHA: ${{ steps.dep.outputs.sha }}
+          TASK: ${{ steps.dep.outputs.task }}
+          ENVIRONMENT: ${{ steps.dep.outputs.environment }}
+        run: |
+          status() {
+            gh api -X POST "repos/$GITHUB_REPOSITORY/deployments/$ID/statuses" -f state="$1" \
+              -f description="${2:0:140}" -f log_url="$LOG_URL" -f environment_url="$URL" --silent
+          }
+          stop() { status "$1" "$2"; echo "$2"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          [ "$ENVIRONMENT" = production ] || stop failure "environment $ENVIRONMENT is not deployed here"
+          on_main=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$SHA" --jq .status)
+          case $on_main in identical | behind) ;; *) stop failure "not on main" ;; esac
+
+          if [ "$TASK" = deploy ]; then
+            # The newest Deployment in production whose latest status is success is what runs now.
+            live=
+            for d in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=production&per_page=30" \
+                --jq ".[] | select(.id != $ID) | \"\(.id):\(.sha)\""); do
+              state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/${d%%:*}/statuses?per_page=1" --jq '.[0].state // ""')
+              if [ "$state" = success ]; then live=${d#*:}; break; fi
+            done
+            if [ -n "$live" ]; then
+              order=$(gh api "repos/$GITHUB_REPOSITORY/compare/$live...$SHA" --jq .status)
+              case $order in identical | behind) stop inactive "superseded by ${live:0:7}" ;; esac
+            fi
+          fi
+
+          status in_progress "deploying ${SHA:0:7}"
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
+      - name: Join the tailnet as tag:ci-deploy (DEP-19)
+        if: steps.guard.outputs.go == 'true'
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-deploy
+          ping: ${{ env.VPS }}
+
+      - name: deploy <app> <sha> over SSH (DEP-10)
+        id: ssh
+        if: steps.guard.outputs.go == 'true'
+        env:
+          SHA: ${{ steps.dep.outputs.sha }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          key=$RUNNER_TEMP/deploy-key
+          (umask 077 && printf '%s\n' "$DEPLOY_SSH_KEY" > "$key")
+          printf '%s %s\n' "$VPS" "$VPS_HOST_KEY" > "$RUNNER_TEMP/known_hosts"
+          if out=$(ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+              -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
+              "deploy@$VPS" "$APP $SHA" 2>&1); then rc=0; else rc=$?; fi
+          rm -f "$key"
+          printf '%s\n' "$out"
+          last=$(printf '%s\n' "$out" | grep -v '^$' | tail -n 1 | tr -cd '[:print:]')
+          echo "message=${last:0:140}" >> "$GITHUB_OUTPUT"
+          exit "$rc"
+
+      - name: Final status (DEP-15)
+        if: always() && steps.guard.outputs.go == 'true'
+        env:
+          ID: ${{ steps.dep.outputs.id }}
+          OUTCOME: ${{ steps.ssh.outcome }}
+          MESSAGE: ${{ steps.ssh.outputs.message }}
+        run: |
+          if [ "$OUTCOME" = success ]; then
+            state=success description=${MESSAGE:-deployed}
+          else
+            state=failure description=${MESSAGE:-"did not reach the server ($OUTCOME)"}
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/deployments/$ID/statuses" -f state="$state" \
+            -f description="${description:0:140}" -f log_url="$LOG_URL" -f environment_url="$URL" --silent
+          echo "$state: $description"
