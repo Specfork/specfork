@@ -39,3 +39,4 @@
 - Go, not TypeScript: one static binary, installable from GitHub with no package-registry account; the crawler and MCP server share the same code. Packaging (npm, brew, curl) only changes how the binary is delivered.
 - Per-platform npm packages, not a postinstall download: works with `--ignore-scripts`, offline caches and locked-down CI.
 - Release workflows are synced copies of the ones in `ci` (public repo).
+- Versions start at 0.1.0 and stay below 1.0 until the CLI is declared stable; below 1.0 a breaking change bumps the minor version (release-please `bump-minor-pre-major`). The first release is pinned with a `Release-As: 0.1.0` footer, because release-please otherwise read the SpecHub rename as a reason for 1.0.0.
