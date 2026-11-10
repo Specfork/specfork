@@ -20,3 +20,4 @@ Short but technical: interfaces, fields, formulas, limits. ~30 lines per spec.
 | [mcp.md](mcp.md) | MCP | MCP server for agents, usage counters |
 | [api.md](api.md) | API | `specfork serve` backend: GitHub sign-in, scores, one-click claims |
 | [extract.md](extract.md) | EXT | Seed pipeline: extract from open-source app, factor bases, rebuild, publish |
+| [catalog.md](catalog.md) | CAT | 100 specs modeled on well-known commercial apps: approved list, batches of ten, publishing |
